@@ -122,7 +122,7 @@ class ConstraintRemovalNode(
     val domain: Domain,
     val subdomain: SubDomain,
     val explanation: String = ""
-) extends ParametrisedNode {
+) extends NNFNode {
 
   // ========================= ONE-LINERS =====================================
 
@@ -131,8 +131,6 @@ class ConstraintRemovalNode(
   var domains: Set[Domain] = Set(domain)
 
   lazy val evalOrder = child.get.evalOrder + 1
-
-  def mainIntroducedDomain: Domain = subdomain
 
   def simpleClone(): NNFNode = {
     val n = new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)

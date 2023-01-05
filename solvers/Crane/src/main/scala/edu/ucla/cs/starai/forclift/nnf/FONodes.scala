@@ -164,7 +164,7 @@ class CountingNode(
     val domain: Domain,
     val subdomain: SubDomain,
     val explanation: String = ""
-) extends ParametrisedNode {
+) extends NNFNode {
 
   // ========================= ONE-LINERS =====================================
 
@@ -175,8 +175,6 @@ class CountingNode(
   lazy val evalOrder = child.get.evalOrder + 1
 
   def excludedConstants = subdomain.excludedConstants
-
-  def mainIntroducedDomain: Domain = subdomain
 
   def simpleClone(): NNFNode = {
     val n = new CountingNode(cnf, None, domain, subdomain, explanation)

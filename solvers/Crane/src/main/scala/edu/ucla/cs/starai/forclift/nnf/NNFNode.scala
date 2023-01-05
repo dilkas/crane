@@ -92,15 +92,6 @@ object NNFNode {
 
 }
 
-/** A ParametrisedNode is either a CountingNode or a ConstraintRemovalNode,
-  * i.e., a node that causes new domains to be introduced.
-  */
-abstract class ParametrisedNode() extends NNFNode {
-
-  def mainIntroducedDomain: Domain
-
-}
-
 /** A circuit node.
   *
   * @param variablesForSmoothing we construct this using

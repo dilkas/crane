@@ -123,7 +123,6 @@ abstract class MyCompiler(
                   originalDomain,
                   newDomain
                 )
-                newDomain.setCause(node)
 
                 log("\nConstraint removal. Before:")
                 log(cnf.toString)

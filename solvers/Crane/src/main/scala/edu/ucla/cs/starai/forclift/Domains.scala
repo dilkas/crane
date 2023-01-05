@@ -88,16 +88,6 @@ sealed abstract class Domain {
     }
   }
 
-  /** Was this domain created by applying the constraint removal rule?
-    *
-    * All subdomains are created by either constraint removal or counting.
-    */
-  def isCausedByConstraintRemoval: Boolean = {
-    if (!isInstanceOf[SubDomain]) return false
-    val cause = asInstanceOf[SubDomain].cause
-    cause.isDefined && cause.get.isInstanceOf[ConstraintRemovalNode]
-  }
-
   def setMinus(other: Domain): List[Domain] = {
     if (other == this) List()
     else if (subDomain(other)) List()
@@ -291,9 +281,7 @@ abstract class SubDomain(
     val superScript: String,
     val subScript: String,
     parent: Domain,
-    val excludedConstants: collection.Set[Constant],
-    var cause: Option[ParametrisedNode] = None
-) extends Domain {
+    val excludedConstants: collection.Set[Constant]) extends Domain {
 
   // needs to be ordered, therefore List not Set
   lazy val knownIncludedConstants: List[Constant] =
@@ -304,12 +292,6 @@ abstract class SubDomain(
   def knownConstants: List[Constant] = root.knownConstants
 
   def parents: Stream[Domain] = Stream.cons(parent, parent.parents)
-
-  def getCause = cause.get
-
-  def setCause(newCause: ParametrisedNode) = {
-    cause = Some(newCause)
-  }
 
   def root = parent.root
 
@@ -359,8 +341,6 @@ class ComplementDomain(
     val complement: SubDomain,
     excludedConstants: collection.Set[Constant]
 ) extends SubDomain(superScript, subScript, parent, excludedConstants) {
-
-  override def getCause = complement.getCause
 
   /** Assumes that all constants in excluded are part of the domain.
     */

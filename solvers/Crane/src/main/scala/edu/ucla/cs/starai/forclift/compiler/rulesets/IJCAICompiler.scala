@@ -450,7 +450,6 @@ abstract class IJCAI11Compiler(
       val childCNF = new CNF(trueUnitClause :: falseUnitClause :: cnf.clauses)
 
       val node = new CountingNode(cnf, None, domain, subdomain, msg)
-      subdomain.setCause(node)
       log("After:")
       log(childCNF + "\n")
       List((Some(node), List(childCNF)))

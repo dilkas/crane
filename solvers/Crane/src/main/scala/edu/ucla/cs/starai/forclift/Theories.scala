@@ -320,19 +320,6 @@ object CNF {
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
-  private[this] def traceAncestors(d1: Domain, d2: Domain): Option[Boolean] = Some(true)
-  // {
-  //   var foundConstraintRemoval = false
-  //   var d = d2
-  //   while (d != d1 && d.isInstanceOf[SubDomain]) {
-  //     foundConstraintRemoval = foundConstraintRemoval ||
-  //       d.isCausedByConstraintRemoval
-  //     d = d.parents.head
-  //   }
-  //   // if (d == d1) Some(foundConstraintRemoval) else None
-  //   // if (d == d1) Some(true) else None
-  // }
-
   /** Tries to identify newFormula as oldFormula but with some domains replaced
     * by their subdomains, irrespective of variable names.
     *
@@ -374,15 +361,6 @@ object CNF {
           } {
             var foundConstraintRemoval2 = foundConstraintRemoval
             try {
-              for (d <- clause1.domains) {
-                val foundConstraintRemoval3 = traceAncestors(
-                  d, domainBijection(d))
-                foundConstraintRemoval3 match {
-                  case None => throw new DomainNotMatchedException
-                  case Some(v) =>
-                    foundConstraintRemoval2 = foundConstraintRemoval2 || v
-                }
-              }
               val recursion = identifyRecursion(
                 updatedNewFormula,
                 updatedOldFormula,
