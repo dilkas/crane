@@ -61,8 +61,12 @@ class DebugCLI(argumentParser: ArgotParser) {
     List("ground"),
     "Show a ground CNF for the model.")
   def showGrounding = showGroundingFlag.value.getOrElse(false)
-  
-  
+
+  val outputFunctionsFlag = argumentParser.flag[Boolean](
+    List("f", "functions"),
+    "Output the definitions of functions.")
+  def outputFunctions = outputFunctionsFlag.value.getOrElse(false)
+
   def runDebugging(inputCLI: InputCLI) {
     
     if (showGrounding) {
@@ -91,7 +95,12 @@ class DebugCLI(argumentParser: ArgotParser) {
         wcnfQuery.showSmoothNnfPdf(compact, maxDepth, "query.smooth.nnf", verbose = verbose)
       }
     }
-    
+
+    if (outputFunctions) {
+      println()
+      inputCLI.wcnfModel.toLatex.foreach{println(_)}
+      println()
+    }
   }
 
   

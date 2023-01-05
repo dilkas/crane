@@ -6,10 +6,11 @@ import scala.collection.mutable.Set
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.PositiveUnitClause
 
-/** Updates the 'domains' field of all nodes in a way that avoids infinite
-  * loops caused by cycles in the circuit.
+/** Updates the 'domains' field of all nodes in a way that avoids infinite loops
+  * caused by cycles in the circuit.
   *
-  * @param nodes all circuit nodes (as returned by PostOrderVisitor)
+  * @param nodes
+  *   all circuit nodes (as returned by PostOrderVisitor)
   *
   * Each visitor method returns 'true' if the 'domains' field of the input node
   * was updated and 'false' otherwise.
@@ -63,7 +64,7 @@ class DomainsVisitor(val nodes: ListBuffer[NNFNode])
       cr: ConstraintRemovalNode,
       u: Unit
   ): Boolean = {
-    val newDomains = cr.child.get.domains + cr.domain
+    val newDomains = cr.child.get.domains + cr.domain - cr.subdomain
     val returnValue = cr.domains != newDomains
     cr.domains = newDomains
     returnValue

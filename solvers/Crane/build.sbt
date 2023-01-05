@@ -37,7 +37,7 @@ import java.util.Date
 
   val buildName         = "forclift"
   val buildOrganization = "edu.ucla.cs.starai"
-  val buildScalaVersion = "2.11.8"
+  val buildScalaVersion = "2.11.12"
   val buildScalaVersionMajor = "2.11"
   val jreTargetVersion  = "1.7"
   val buildVersion      = "3.1"
@@ -232,3 +232,4 @@ import java.util.Date
 // }
 
 trapExit := false
+

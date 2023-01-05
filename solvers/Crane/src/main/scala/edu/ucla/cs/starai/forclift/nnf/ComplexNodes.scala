@@ -33,19 +33,19 @@ class Ref(
     val cnf: CNF,
     var nnfNode: Option[NNFNode],
     val domainMap: Map[Domain, Domain],
-    val explanation: String = ""
+    val explanation: String = "",
+    var domains: Set[Domain] = Set()
 ) extends NNFNode {
 
   override def directSuccessors = List(nnfNode)
-
-  var domains: Set[Domain] = Set()
 
   // Cycles created by Ref nodes can complicate the order of the circuit in
   // various ways. Since evalOrder is not used for anything important, let's
   // not bother computing the exact order.
   lazy val evalOrder = 0
 
-  def simpleClone(): NNFNode = new Ref(cnf, None, domainMap, explanation)
+  def simpleClone(): NNFNode =
+    new Ref(cnf, None, domainMap, explanation, domains)
 
   def size = 0
 
@@ -67,7 +67,8 @@ class Ref(
       cnf,
       Some(NNFNode.conditionCache((nnfNode.get, pos, neg))),
       domainMap,
-      explanation
+      explanation,
+      domains
     )
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
@@ -76,7 +77,7 @@ class Ref(
   lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
     NNFNode.smoothingCache(this)
   } else {
-    val newNode = new Ref(cnf, None, domainMap, explanation)
+    val newNode = new Ref(cnf, None, domainMap, explanation, domains)
     NNFNode.smoothingCache(this) = newNode
     newNode.update(List(Some(nnfNode.get.smooth)))
     newNode
@@ -94,7 +95,7 @@ class Ref(
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
     nameSpace.getName(nnfNode.get)
-    //nameSpace.forceName(this, nameSpace.getName(nnfNode.get))
+    // nameSpace.forceName(this, nameSpace.getName(nnfNode.get))
     ("", "")
   }
 
@@ -107,10 +108,13 @@ class Ref(
 /** Constraints of the form 'v != c' are removed by introducing a new domain
   * without c.
   *
-  * @param child     the first node of the subscircuit for the remaining formula
-  *                  (after constraint removal, etc.)
-  * @param domain    the domain that's being replaced
-  * @param subdomain what it's being replaced with
+  * @param child
+  *   the first node of the subscircuit for the remaining formula (after
+  *   constraint removal, etc.)
+  * @param domain
+  *   the domain that's being replaced
+  * @param subdomain
+  *   what it's being replaced with
   */
 class ConstraintRemovalNode(
     val cnf: CNF,
@@ -124,14 +128,17 @@ class ConstraintRemovalNode(
 
   override def directSuccessors = List(child)
 
-  var domains = Set(domain)
+  var domains: Set[Domain] = Set(domain)
 
   lazy val evalOrder = child.get.evalOrder + 1
 
   def mainIntroducedDomain: Domain = subdomain
 
-  def simpleClone(): NNFNode =
-    new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+  def simpleClone(): NNFNode = {
+    val n = new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+    n.domains = domains
+    n
+  }
 
   def size = child.get.size + 1
 
@@ -176,6 +183,7 @@ class ConstraintRemovalNode(
     } else {
       val newNode =
         new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+      newNode.domains = domains
       NNFNode.smoothingCache(this) = newNode
       val countedSubdomainParents =
         NNFNode.removeSubsumed(child.get.variablesForSmoothing.map {
@@ -198,6 +206,7 @@ class ConstraintRemovalNode(
       subdomain,
       explanation
     )
+    returnValue.domains = domains
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
   }
@@ -260,14 +269,13 @@ class And(
     val cnf: CNF,
     var l: Option[NNFNode],
     var r: Option[NNFNode],
-    val explanation: String = ""
+    val explanation: String = "",
+    var domains: Set[Domain] = Set()
 ) extends NNFNode {
 
   override def directSuccessors = List(l, r)
 
-  var domains: Set[Domain] = Set()
-
-  def simpleClone(): NNFNode = new And(cnf, None, None, explanation)
+  def simpleClone(): NNFNode = new And(cnf, None, None, explanation, domains)
 
   def size = l.get.size + r.get.size + 1
 
@@ -299,7 +307,8 @@ class And(
       cnf,
       Some(l.get.condition(pos, neg)),
       Some(r.get.condition(pos, neg)),
-      explanation
+      explanation,
+      domains
     )
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
@@ -308,7 +317,7 @@ class And(
   lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
     NNFNode.smoothingCache(this)
   } else {
-    val newNode = new And(cnf, None, None, explanation)
+    val newNode = new And(cnf, None, None, explanation, domains)
     NNFNode.smoothingCache(this) = newNode
     newNode.update(List(Some(l.get.smooth), Some(r.get.smooth)))
     newNode
@@ -350,8 +359,8 @@ class And(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "and" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + l.get.getName(nameSpace) + ";\n" +
@@ -380,11 +389,11 @@ class And(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "and" + getName(nameSpace) + " -> " + l.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(" $ " + llwmc + " $ ") + """];""" + "\n" +
+            nameSpace
+          ) + """ [""" + edgeLabel(" $ " + llwmc + " $ ") + """];""" + "\n" +
           "  " + "and" + getName(nameSpace) + " -> " + r.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(" $ " + rlwmc + " $ ") + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(" $ " + rlwmc + " $ ") + """];""" + "\n"
       }
       val nodes = (myNodes + nl + nr)
       val edges = (myEdges + el + er)
@@ -394,7 +403,7 @@ class And(
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) +
       getName(nameSpace) + " = " + l.get.getName(nameSpace) + " Λ " + r.get
-      .getName(nameSpace) + "\n" +
+        .getName(nameSpace) + "\n" +
       "\n" +
       l.get.toString(nameSpace) +
       "\n" +
@@ -406,14 +415,13 @@ class Or(
     val cnf: CNF,
     var l: Option[NNFNode],
     var r: Option[NNFNode],
-    val explanation: String = ""
+    val explanation: String = "",
+    var domains: Set[Domain] = Set()
 ) extends NNFNode {
-
-  var domains: Set[Domain] = Set()
 
   override def directSuccessors = List(l, r)
 
-  def simpleClone(): NNFNode = new Or(cnf, None, None, explanation)
+  def simpleClone(): NNFNode = new Or(cnf, None, None, explanation, domains)
 
   def size = l.get.size + r.get.size + 1
 
@@ -444,7 +452,8 @@ class Or(
       cnf,
       Some(l.get.condition(pos, neg)),
       Some(r.get.condition(pos, neg)),
-      explanation
+      explanation,
+      domains
     )
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
@@ -453,7 +462,7 @@ class Or(
   lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
     NNFNode.smoothingCache(this)
   } else {
-    val newNode = new Or(cnf, None, None, explanation)
+    val newNode = new Or(cnf, None, None, explanation, domains)
     NNFNode.smoothingCache(this) = newNode
     val lMissing = r.get.variablesForSmoothing.flatMap {
       _.minus(l.get.variablesForSmoothing)
@@ -502,8 +511,8 @@ class Or(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "or" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\lor$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\lor$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + l.get.getName(nameSpace) + ";\n" +
@@ -532,11 +541,11 @@ class Or(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "or" + getName(nameSpace) + " -> " + l.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(" $ " + llwmc + " $ ") + """];""" + "\n" +
+            nameSpace
+          ) + """ [""" + edgeLabel(" $ " + llwmc + " $ ") + """];""" + "\n" +
           "  " + "or" + getName(nameSpace) + " -> " + r.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(" $ " + rlwmc + " $ ") + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(" $ " + rlwmc + " $ ") + """];""" + "\n"
       }
       val nodes = (myNodes + nl + nr)
       val edges = (myEdges + el + er)
@@ -546,7 +555,7 @@ class Or(
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) +
       getName(nameSpace) + " = " + l.get.getName(nameSpace) + " v " + r.get
-      .getName(nameSpace) + "\n" +
+        .getName(nameSpace) + "\n" +
       "\n" +
       l.get.toString(nameSpace) +
       "\n" +
@@ -559,15 +568,14 @@ class InclusionExclusion(
     var plus1: Option[NNFNode],
     var plus2: Option[NNFNode],
     var min: Option[NNFNode],
-    val explanation: String = ""
+    val explanation: String = "",
+    var domains: Set[Domain] = Set()
 ) extends NNFNode {
 
   override def directSuccessors = List(plus1, plus2, min)
 
-  var domains: Set[Domain] = Set()
-
   def simpleClone(): NNFNode =
-    new InclusionExclusion(cnf, None, None, None, explanation)
+    new InclusionExclusion(cnf, None, None, None, explanation, domains)
 
   def size = plus1.get.size + plus2.get.size + min.get.size + 1
 
@@ -605,7 +613,8 @@ class InclusionExclusion(
       Some(plus1.get.condition(pos, neg)),
       Some(plus2.get.condition(pos, neg)),
       Some(min.get.condition(pos, neg)),
-      explanation
+      explanation,
+      domains
     )
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
@@ -614,7 +623,8 @@ class InclusionExclusion(
   lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
     NNFNode.smoothingCache(this)
   } else {
-    val newNode = new InclusionExclusion(cnf, None, None, None, explanation)
+    val newNode =
+      new InclusionExclusion(cnf, None, None, None, explanation, domains)
     NNFNode.smoothingCache(this) = newNode
     val plus1Missing = NNFNode
       .removeSubsumed(
@@ -686,32 +696,32 @@ class InclusionExclusion(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "ie" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ """ + ieSymbol + """", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ """ + ieSymbol + """", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + plus1.get.getName(
           nameSpace
         ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
           "  " + getName(nameSpace) + " -> " + plus2.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
+            nameSpace
+          ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
           "  " + getName(nameSpace) + " -> " + min.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel("-") + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel("-") + """];""" + "\n"
       } else {
         "  " + getName(nameSpace) + " -> " + "ie" + getName(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "ie" + getName(nameSpace) + " -> " + plus1.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
+            nameSpace
+          ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
           "  " + "ie" + getName(nameSpace) + " -> " + plus2.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
+            nameSpace
+          ) + """ [""" + edgeLabel("+") + """];""" + "\n" +
           "  " + "ie" + getName(nameSpace) + " -> " + min.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel("-") + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel("-") + """];""" + "\n"
       }
       val nodes = (myNodes + n1 + n2 + n3)
       val edges = (myEdges + e1 + e2 + e3)

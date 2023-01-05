@@ -41,8 +41,12 @@ class IndependentPartialGroundingNode(
 
   lazy val evalOrder = child.get.evalOrder
 
-  def simpleClone(): NNFNode =
-    new IndependentPartialGroundingNode(cnf, None, c, ineqs, d, explanation)
+  def simpleClone(): NNFNode = {
+    val n =
+      new IndependentPartialGroundingNode(cnf, None, c, ineqs, d, explanation)
+    n.domains = domains
+    n
+  }
 
   def size = child.get.size + 1
 
@@ -68,6 +72,7 @@ class IndependentPartialGroundingNode(
       d,
       explanation
     )
+    returnValue.domains = domains
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
   }
@@ -78,6 +83,7 @@ class IndependentPartialGroundingNode(
     } else {
       val newNode =
         new IndependentPartialGroundingNode(cnf, None, c, ineqs, d, explanation)
+      newNode.domains = domains
       NNFNode.smoothingCache(this) = newNode
       newNode.update(List(Some(child.get.smooth)))
       newNode
@@ -113,8 +119,8 @@ class IndependentPartialGroundingNode(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "exp" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\displaystyle\bigforall{""" + c + """}{""" + subscript + """}$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\displaystyle\bigforall{""" + c + """}{""" + subscript + """}$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + child.get.getName(
@@ -130,10 +136,10 @@ class IndependentPartialGroundingNode(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "exp" + getName(nameSpace) + " -> " + child.get.getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(
-          " $ " + childlwmc.exp + " $ "
-        ) + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(
+            " $ " + childlwmc.exp + " $ "
+          ) + """];""" + "\n"
       }
       val nodes = (myNodes + nl)
       val edges = (myEdges + el)
@@ -143,10 +149,10 @@ class IndependentPartialGroundingNode(
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) +
       getName(nameSpace) + " = " + child.get.getName(
-      nameSpace
-    ) + " ^ |" + d + "|" + ineqs
-      .map { """X \neq """ + _.toString }
-      .mkString(" , ") + "\n" +
+        nameSpace
+      ) + " ^ |" + d + "|" + ineqs
+        .map { """X \neq """ + _.toString }
+        .mkString(" , ") + "\n" +
       "\n" +
       child.get.toString(nameSpace))
 
@@ -172,8 +178,11 @@ class CountingNode(
 
   def mainIntroducedDomain: Domain = subdomain
 
-  def simpleClone(): NNFNode =
-    new CountingNode(cnf, None, domain, subdomain, explanation)
+  def simpleClone(): NNFNode = {
+    val n = new CountingNode(cnf, None, domain, subdomain, explanation)
+    n.domains = domains
+    n
+  }
 
   def size = child.get.size + 1
 
@@ -212,6 +221,7 @@ class CountingNode(
       subdomain,
       explanation
     )
+    returnValue.domains = domains
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
   }
@@ -221,6 +231,7 @@ class CountingNode(
       NNFNode.smoothingCache(this)
     } else {
       val newNode = new CountingNode(cnf, None, domain, subdomain, explanation)
+      newNode.domains = domains
       NNFNode.smoothingCache(this) = newNode
       // this is fine, but does not mean the result will be non-overlapping
       // two catoms might overlap but not one subsumes the other
@@ -267,8 +278,8 @@ class CountingNode(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "count" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\displaystyle\bigexists{""" + subdomain + """}{ """ + subdomain + """ \subseteq """ + domain + """}$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\displaystyle\bigexists{""" + subdomain + """}{ """ + subdomain + """ \subseteq """ + domain + """}$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + child.get.getName(
@@ -280,8 +291,8 @@ class CountingNode(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "count" + getName(nameSpace) + " -> " + child.get.getName(
-          nameSpace
-        ) + ";\n"
+            nameSpace
+          ) + ";\n"
       }
       val nodes = (myNodes + nl)
       val edges = (myEdges + el)
@@ -293,7 +304,7 @@ class CountingNode(
       getName(
         nameSpace
       ) + " = count " + subdomain + " from " + domain)
-  //+ " " + child.get.getName(nameSpace) + "\n" + "\n"
+  // + " " + child.get.getName(nameSpace) + "\n" + "\n"
   // + child.get.toString(nameSpace))
 
 }
@@ -314,8 +325,12 @@ class DomainRecursionNode(
 
   lazy val evalOrder = mixedChild.get.evalOrder // assume constant eval
 
-  def simpleClone(): NNFNode =
-    new DomainRecursionNode(cnf, None, None, c, ineqs, domain, explanation)
+  def simpleClone(): NNFNode = {
+    val n =
+      new DomainRecursionNode(cnf, None, None, c, ineqs, domain, explanation)
+    n.domains = domains
+    n
+  }
 
   def size = mixedChild.get.size + groundChild.get.size + 1
 
@@ -352,6 +367,7 @@ class DomainRecursionNode(
       domain,
       explanation
     )
+    returnValue.domains = domains
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
   }
@@ -362,6 +378,7 @@ class DomainRecursionNode(
     } else {
       val newNode =
         new DomainRecursionNode(cnf, None, None, c, ineqs, domain, explanation)
+      newNode.domains = domains
       NNFNode.smoothingCache(this) = newNode
       newNode.update(
         List(Some(mixedChild.get.smooth), Some(groundChild.get.smooth))
@@ -404,21 +421,21 @@ class DomainRecursionNode(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "domainrec" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + mixedChild.get.getName(
           nameSpace
         ) + ";\n" +
           "  " + getName(nameSpace) + " -> " + groundChild.get.getName(
-          nameSpace
-        ) + ";\n" +
+            nameSpace
+          ) + ";\n" +
           "  " + getName(nameSpace) + " -> " + getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(
-          "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
-        ) + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(
+            "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
+          ) + """];""" + "\n"
       } else {
         val wmcVisitor = new SafeSignLogDoubleWmc
         val groundChildWmc = wmcVisitor.visit(
@@ -436,18 +453,18 @@ class DomainRecursionNode(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "domainrec" + getName(nameSpace) + " -> " + mixedChild.get
-          .getName(nameSpace) + """ [""" + edgeLabel(
-          " $ " + mixedChildWmc.exp + " $ "
-        ) + """];""" + "\n" +
+            .getName(nameSpace) + """ [""" + edgeLabel(
+            " $ " + mixedChildWmc.exp + " $ "
+          ) + """];""" + "\n" +
           "  " + "domainrec" + getName(nameSpace) + " -> " + groundChild.get
-          .getName(nameSpace) + """ [""" + edgeLabel(
-          " $ " + groundChildWmc.exp + " $ "
-        ) + """];""" + "\n" +
+            .getName(nameSpace) + """ [""" + edgeLabel(
+            " $ " + groundChildWmc.exp + " $ "
+          ) + """];""" + "\n" +
           "  " + "domainrec" + getName(nameSpace) + " -> " + getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(
-          "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
-        ) + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(
+            "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
+          ) + """];""" + "\n"
       }
       val nodes = (myNodes + n1 + n2)
       val edges = (myEdges + e1 + e2)
@@ -459,7 +476,7 @@ class DomainRecursionNode(
       getName(
         nameSpace
       ) + " = domainrec " + c + " from " + domain + " " + mixedChild.get
-      .getName(nameSpace) + " " + groundChild.get.getName(nameSpace) + "\n" +
+        .getName(nameSpace) + " " + groundChild.get.getName(nameSpace) + "\n" +
       "\n" + "\n" +
       mixedChild.get.toString(nameSpace) +
       "\n" +
@@ -487,8 +504,11 @@ class ImprovedDomainRecursionNode(
   // It's easier just to leave this here
   lazy val ineqs = Set[Constant]()
 
-  def simpleClone(): NNFNode =
-    new ImprovedDomainRecursionNode(cnf, None, c, domain, explanation)
+  def simpleClone(): NNFNode = {
+    val n = new ImprovedDomainRecursionNode(cnf, None, c, domain, explanation)
+    n.domains = domains
+    n
+  }
 
   def size = mixedChild.size + 1
 
@@ -513,6 +533,7 @@ class ImprovedDomainRecursionNode(
       domain,
       explanation
     )
+    returnValue.domains = domains
     NNFNode.conditionCache((this, pos, neg)) = returnValue
     returnValue
   }
@@ -553,18 +574,18 @@ class ImprovedDomainRecursionNode(
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
           .toLatex() + """"];""" + "\n" +
           "  " + "domainrec" + getName(
-          nameSpace
-        ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
+            nameSpace
+          ) + """ [texlbl="""" + fontsize + """ $\land$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + mixedChild.get.getName(
           nameSpace
         ) + ";\n" +
           "  " + getName(nameSpace) + " -> " + getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(
-          "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
-        ) + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(
+            "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
+          ) + """];""" + "\n"
       } else {
         val wmcVisitor = new SafeSignLogDoubleWmc
         val mixedChildWmc = wmcVisitor.visit(
@@ -578,14 +599,14 @@ class ImprovedDomainRecursionNode(
           nameSpace
         ) + """ [""" + edgeLabel(explanation) + """];""" + "\n" +
           "  " + "domainrec" + getName(nameSpace) + " -> " + mixedChild.get
-          .getName(nameSpace) + """ [""" + edgeLabel(
-          " $ " + mixedChildWmc.exp + " $ "
-        ) + """];""" + "\n" +
+            .getName(nameSpace) + """ [""" + edgeLabel(
+            " $ " + mixedChildWmc.exp + " $ "
+          ) + """];""" + "\n" +
           "  " + "domainrec" + getName(nameSpace) + " -> " + getName(
-          nameSpace
-        ) + """ [""" + edgeLabel(
-          "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
-        ) + """];""" + "\n"
+            nameSpace
+          ) + """ [""" + edgeLabel(
+            "$" + domain + """ \leftarrow """ + domain + """ \setminus \{""" + c + """\}$"""
+          ) + """];""" + "\n"
       }
       val nodes = (myNodes + n1)
       val edges = (myEdges + e1)
@@ -594,7 +615,7 @@ class ImprovedDomainRecursionNode(
 
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) + getName(nameSpace) + " = domainrec " + c +
-       " from " + domain)
+      " from " + domain)
   // + " " + mixedChild.get.getName(nameSpace) + "\n" + "\n" +
   // mixedChild.get.toString(nameSpace))
 

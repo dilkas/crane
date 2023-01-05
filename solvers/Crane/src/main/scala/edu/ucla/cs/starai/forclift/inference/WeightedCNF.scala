@@ -23,9 +23,7 @@ import edu.ucla.cs.starai.forclift.compiler._
 import edu.ucla.cs.starai.forclift.conditioning._
 import edu.ucla.cs.starai.forclift.propositional._
 import edu.ucla.cs.starai.forclift.util._
-import edu.ucla.cs.starai.forclift.nnf.visitors.SignLogDoubleWmc
-import edu.ucla.cs.starai.forclift.nnf.visitors.VerifyWmcVisitor
-import edu.ucla.cs.starai.forclift.nnf.visitors.WmcVisitor
+import edu.ucla.cs.starai.forclift.nnf.visitors._
 
 case class WeightedCNF(
   cnf: CNF,
@@ -80,6 +78,12 @@ case class WeightedCNF(
     val c2d = new LogC2D
     c2d.weightedModelCount(propCnf)
   }
+
+  lazy val toLatex: List[String] = smoothNnfs.map{ nnf =>
+    val functionIntroductionFinder = new FunctionIntroductionFinder
+      functionIntroductionFinder.visit(nnf)
+    LatexOutputVisitor(domainSizes.domains, functionIntroductionFinder.nodes, nnf)
+  }.flatten
 
   def verifyLogWmc {
 	VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)
