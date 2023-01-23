@@ -82,7 +82,7 @@ case class WeightedCNF(
   lazy val toLatex: List[String] = smoothNnfs.map{ nnf =>
     val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
-    LatexOutputVisitor(domainSizes.domains, functionIntroductionFinder.nodes, nnf)
+    LatexOutputVisitor(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
   }.flatten
 
   def verifyLogWmc {

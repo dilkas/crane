@@ -3,6 +3,7 @@ package edu.ucla.cs.starai.forclift.nnf.visitors
 import scala.collection._
 
 import edu.ucla.cs.starai.forclift._
+import edu.ucla.cs.starai.forclift.inference.PredicateWeights
 import edu.ucla.cs.starai.forclift.nnf._
 
 /** Constructs a list of Strings, where each String is a definition of a
@@ -14,8 +15,10 @@ import edu.ucla.cs.starai.forclift.nnf._
   *   the set of all nodes that are direct successors of some Ref node
   *   (equivalently, the nodes that have in-degree greater than one)
   *
-  * NOTE: There is no support for predicate weights as of yet, but it should be
-  * easy to add.
+  * NOTE: The support for predicate weights is incomplete. We need an algorithm
+  * that computes the number of groundings of a clause just like nbGroundings
+  * but returns an algebraic expression over domain sizes. The methods
+  * visitSmoothingNode and visitUnitLeaf would then use this algorithm.
   *
   * Functions are named f_{0}, f_{1},... and variables (that denote domain
   * sizes) are named x_{0}, x_{1},...
@@ -35,8 +38,9 @@ import edu.ucla.cs.starai.forclift.nnf._
   */
 class LatexOutputVisitor(
     val initialDomains: Set[Domain],
-    val directSuccessorsOfRef: Set[NNFNode]
-) extends NnfVisitor[Map[Domain, String], (String, List[String])] {
+    val directSuccessorsOfRef: Set[NNFNode],
+    val predicateWeights: PredicateWeights
+) extends NnfVisitor[(Map[Domain, String], PredicateWeights), (String, List[String])] {
 
   private[this] val functionNames = collection.mutable.Map[NNFNode, String]()
   private[this] var nextFunctionIndex = 0
@@ -44,8 +48,9 @@ class LatexOutputVisitor(
 
   override def visit(
       node: NNFNode,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) =
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
     if (directSuccessorsOfRef.contains(node)) {
       // Start the definition of a new function
       val functionName = newFunctionName(node)
@@ -56,7 +61,7 @@ class LatexOutputVisitor(
           (domain, name)
         }
       }
-      val (expression, functions) = super.visit(node, newVariableNames)
+      val (expression, functions) = super.visit(node, (newVariableNames, predicateWeights))
       val functionCall = functionName + "(" + node.orderedDomains
         .map { variableNames(_) }
         .mkString(", ") + ")"
@@ -65,8 +70,9 @@ class LatexOutputVisitor(
         .mkString(", ") + ")"
       (functionCall, (functionSignature + " = " + expression) :: functions)
     } else {
-      super.visit(node, variableNames)
+      super.visit(node, params)
     }
+  }
 
   private def newFunctionName(node: NNFNode): String = {
     val name = s"f_{$nextFunctionIndex}"
@@ -85,64 +91,65 @@ class LatexOutputVisitor(
 
   protected def visitAndNode(
       and: And,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    val (expression1, functions1) = visit(and.l.get, variableNames)
-    val (expression2, functions2) = visit(and.r.get, variableNames)
+    val (expression1, functions1) = visit(and.l.get, params)
+    val (expression2, functions2) = visit(and.r.get, params)
     (s"$expression1 \\times $expression2", functions1 ++ functions2)
   }
 
   protected def visitConstraintRemovalNode(
       cr: ConstraintRemovalNode,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) = visit(
-    cr.child.get,
-    variableNames + (cr.subdomain -> ("(" + variableNames(cr.domain) + " - 1)"))
-  )
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
+    val newVariableNames = variableNames + (cr.subdomain -> ("(" + variableNames(cr.domain) + " - 1)"), cr.subdomain.complement -> "1")
+    visit(cr.child.get, (newVariableNames, predicateWeights))
+  }
 
   // We're not using regular domain recursion anyway, so it doesn't matter
   // what this method does
   protected def visitDomainRecursion(
       dr: DomainRecursionNode,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    visit(dr.mixedChild.get, variableNames)
-    visit(dr.groundChild.get, variableNames)
+    visit(dr.mixedChild.get, params)
+    visit(dr.groundChild.get, params)
   }
 
   protected def visitExists(
       exists: CountingNode,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
     val n = variableNames(exists.domain)
     val m = newVariableName()
-    val (expression, functions) = visit(
-      exists.child.get,
-      variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
-    )
+    val newVariableNames = variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
+    val (expression, functions) = visit(exists.child.get, (newVariableNames, predicateWeights))
     (s"\\sum_{$m = 0}^{$n} \\binom{$n}{$m} \\times $expression", functions)
   }
 
   protected def visitForallNode(
       forall: IndependentPartialGroundingNode,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    val (expression, functions) = visit(forall.child.get, variableNames)
+    val (variableNames, predicateWeights) = params
+    val (expression, functions) = visit(forall.child.get, params)
     (s"$expression^{" + variableNames(forall.d) + "}", functions)
   }
 
   protected def visitImprovedDomainRecursion(
       idr: ImprovedDomainRecursionNode,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) = visit(idr.mixedChild.get, variableNames)
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = visit(idr.mixedChild.get, params)
 
   protected def visitInclusionExclusionNode(
       ie: InclusionExclusion,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    val (expression1, functions1) = visit(ie.plus1.get, variableNames)
-    val (expression2, functions2) = visit(ie.plus2.get, variableNames)
-    val (expression3, functions3) = visit(ie.min.get, variableNames)
+    val (expression1, functions1) = visit(ie.plus1.get, params)
+    val (expression2, functions2) = visit(ie.plus2.get, params)
+    val (expression3, functions3) = visit(ie.min.get, params)
     (
       s"($expression1 + $expression2 - $expression3)",
       functions1 ++ functions2 ++ functions3
@@ -151,17 +158,18 @@ class LatexOutputVisitor(
 
   protected def visitOrNode(
       or: Or,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    val (expression1, functions1) = visit(or.l.get, variableNames)
-    val (expression2, functions2) = visit(or.r.get, variableNames)
+    val (expression1, functions1) = visit(or.l.get, params)
+    val (expression2, functions2) = visit(or.r.get, params)
     (s"($expression1 + $expression2)", functions1 ++ functions2)
   }
 
   protected def visitRefNode(
       ref: Ref,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) =
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
     (
       functionNames(ref.nnfNode.get) + "(" + ref.nnfNode.get.orderedDomains
         .map { ref.domainMap(_) }
@@ -169,6 +177,7 @@ class LatexOutputVisitor(
         .mkString(", ") + ")",
       Nil
     )
+  }
 
   // ========================= SINK NODES =====================================
 
@@ -183,8 +192,9 @@ class LatexOutputVisitor(
     */
   protected def visitContradictionLeaf(
       leaf: ContradictionLeaf,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
     if (leaf.clause.domains.size != 1)
       throw new IllegalStateException(
         "Contradiction clauses with more than one domain are not supported (but support for them could easily be added if need-be)"
@@ -212,41 +222,68 @@ class LatexOutputVisitor(
   }
 
   protected def visitFalse(
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = ("0", Nil)
 
   protected def visitGroundingNode(
       leaf: GroundingNode,
-      variableNames: Map[Domain, String]
+      params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = throw new IllegalStateException(
     "Grounding is incompatible with OutputVisitors"
   )
 
+  // A smoothing node always has one predicate
   protected def visitSmoothingNode(
       leaf: SmoothingNode,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) = ("1", Nil)
-
-  protected def visitTrue(
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) = ("1", Nil)
-
-  protected def visitUnitLeaf(
-      leaf: UnitLeaf,
-      variableNames: Map[Domain, String]
-  ): (String, List[String]) =
-    if (
-      !leaf.positive && leaf.clause.predicate.name.toString.startsWith("'sef_")
-    ) {
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = {
+    if (leaf.clause.constrs.ineqConstrs.isEmpty) {
+      val (variableNames, predicateWeights) = params
+      val weight = predicateWeights(leaf.clause.predicate).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
       (
-        "(-1)^{" + leaf.domains
-          .map { variableNames(_) }
-          .mkString(" \\times ") + "}",
+        s"($weight)^{" + leaf.clause.literalVariables.map {
+          case variable => variableNames(leaf.clause.domainsFor(Set(variable)).head)
+        }.mkString(" \\times ") + "}",
         Nil
       )
+    } else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {
     } else {
-      ("1", Nil)
+    throw new IllegalStateException("This type of smoothing node is not supported")
     }
+  }
+
+  protected def visitTrue(
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = ("1", Nil)
+
+  // There is significant overlap with visitSmoothingNode
+  protected def visitUnitLeaf(
+      leaf: UnitLeaf,
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = {
+    val (variableNames, predicateWeights) = params
+    val weight = if (leaf.positive) predicateWeights(leaf.clause.predicate).posWDouble else predicateWeights(leaf.clause.predicate).negWDouble
+    if (approxEqual(weight, 1)) {
+      ("1", Nil)
+    } else {
+      if (!leaf.clause.constrs.ineqConstrs.isEmpty)
+        throw new IllegalStateException("Unit leaves with non-empty constraints and a predicate weight not equal to one are currently not supported")
+      (
+        s"($weight)^{" + leaf.clause.literalVariables.map {
+          case variable => {
+            val domains = leaf.clause.domainsFor(Set(variable))
+            if (domains.size != 1)
+              throw new IllegalStateException("If this exception is ever triggered, something with the definition of Clause or Constraints must be bugged")
+            variableNames(domains.head)
+          }
+        }.mkString(" \\times ") + "}",
+        Nil
+      )
+    }
+  }
+
+  private[this] def approxEqual(m: Double, n: Double): Boolean =
+    (m - n).abs <= 0.001
 
 }
 
@@ -255,18 +292,19 @@ object LatexOutputVisitor {
   def apply(
       initialDomains: Set[Domain],
       directSuccessorsOfRef: Set[NNFNode],
+      predicateWeights: PredicateWeights,
       source: NNFNode
   ): List[String] = {
-    val visitor = new LatexOutputVisitor(initialDomains, directSuccessorsOfRef)
+    val visitor = new LatexOutputVisitor(initialDomains, directSuccessorsOfRef, predicateWeights)
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
       case (d, i) => (d, visitor.newVariableName())
     }: _*)
     if (directSuccessorsOfRef.contains(source)) {
-      visitor.visit(source, variableNames)._2
+      visitor.visit(source, (variableNames, predicateWeights))._2
     } else {
       val functionName = visitor.newFunctionName(source)
-      val (expression, functions) = visitor.visit(source, variableNames)
-      (functionName + "(" + source.orderedDomains
+      val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
+      (functionName + "(" + initialDomains
         .map { variableNames(_) }
         .mkString(", ") + ") = " + expression) :: functions
     }
