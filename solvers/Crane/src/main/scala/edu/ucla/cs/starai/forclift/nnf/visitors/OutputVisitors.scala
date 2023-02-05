@@ -246,7 +246,7 @@ class LatexOutputVisitor(
         }.mkString(" \\times ") + "}",
         Nil
       )
-    } else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {
+    /*} else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {*/
     } else {
     throw new IllegalStateException("This type of smoothing node is not supported")
     }

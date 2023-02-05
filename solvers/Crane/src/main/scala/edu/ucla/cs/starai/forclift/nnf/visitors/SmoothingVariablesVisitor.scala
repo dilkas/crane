@@ -18,7 +18,7 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     extends NnfVisitor[Unit, Boolean] {
 
   /** A hacky way to turn a bunch of println statements on and off. */
-  private[this] val Verbose = false
+  private[this] val Verbose = true
 
   @inline private[this] final def log(s: => Any): Unit =
     if (Verbose) println(s)
