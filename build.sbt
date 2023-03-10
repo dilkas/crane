@@ -35,12 +35,12 @@ import java.util.Date
 //import laika.sbt.LaikaSbtPlugin.LaikaPlugin
 
 
-  val buildName         = "forclift"
+  val buildName         = "crane"
   val buildOrganization = "edu.ucla.cs.starai"
   val buildScalaVersion = "2.11.12"
   val buildScalaVersionMajor = "2.11"
   val jreTargetVersion  = "1.7"
-  val buildVersion      = "3.1"
+  val buildVersion      = "1.0"
   val buildMainClass    = "edu.ucla.cs.starai.forclift.cli.CLI"
   val buildJarName      = buildName+".jar"
   val buildJarNameDebug = buildName+"-debug"+".jar"

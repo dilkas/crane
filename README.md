@@ -9,7 +9,7 @@ sbt clean && sbt compile && sbt assembly
 ## How to Run
 
 ```
-[GREEDY=false] [PARALLEL=true] [DEPTH=n] [SOLUTIONS=n] java -jar target/scala-2.11/forclift-assembly-3.1.jar [-f] [--pdf] [--propinf] [-z] --format-in mln example.mln
+[GREEDY=false] [PARALLEL=true] [DEPTH=n] [SOLUTIONS=n] java -jar target/scala-2.11/crane-assembly-3.1.jar [-f] [--pdf] [--propinf] [-z] --format-in mln example.mln
 ```
 
 ### Relevant Options

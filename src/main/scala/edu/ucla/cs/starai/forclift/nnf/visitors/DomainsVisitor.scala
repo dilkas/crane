@@ -105,10 +105,10 @@ class DomainsVisitor(val nodes: ListBuffer[NNFNode])
     returnValue
   }
 
-  // TODO: maybe this should just be the image of rho?
   protected def visitRefNode(ref: Ref, u: Unit): Boolean = {
-    val returnValue = ref.domains != ref.nnfNode.get.domains
-    ref.domains = ref.nnfNode.get.domains
+    val newDomains = ref.domainMap.values.toSet
+    val returnValue = ref.domains != newDomains
+    ref.domains = newDomains
     returnValue
   }
 

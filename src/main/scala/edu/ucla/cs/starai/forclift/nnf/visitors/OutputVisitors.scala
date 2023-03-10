@@ -237,6 +237,7 @@ class LatexOutputVisitor(
       leaf: SmoothingNode,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
+    println("Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail.")
     if (leaf.clause.constrs.ineqConstrs.isEmpty) {
       val (variableNames, predicateWeights) = params
       val weight = predicateWeights(leaf.clause.predicate).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble

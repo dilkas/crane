@@ -35,13 +35,13 @@ object CLI extends App {
   assertFalse()
 
   val argumentParser = new ArgotParser("wfomc", false, 80,
-    Some("Version 3.1"),
+    Some("Version 1.0"),
     Some(
 """
 EXAMPLE
 
-java -jar forclift.jar -q "smokes(Guy)" ./models/friendsmoker.mln
-java -jar forclift.jar -q "smokes(Guy)" ./models/friendsmoker.mln
+java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
+java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
 """), true)
 
   val debugCLI = new DebugCLI(argumentParser)

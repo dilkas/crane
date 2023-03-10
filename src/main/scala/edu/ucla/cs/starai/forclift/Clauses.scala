@@ -138,7 +138,6 @@ class Clause(
     * variables from different domains. Note that the number of variables in a
     * clause is usually only 2-3.
     *
-    * TODO: update this description
     */
   def myEquivalent(that: Any): Boolean =
     that match {
@@ -251,6 +250,7 @@ class Clause(
     Some(domainBijection)
   }
 
+  // TODO: could be made into a lazy stream
   def variableAndDomainBijections(
     that: Clause,
     partialMap: Map[Domain, Domain]
