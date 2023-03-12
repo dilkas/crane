@@ -1,3 +1,7 @@
 Forclift
 Copyright 2011-2016 Guy Van den Broeck, Wannes Meert, and Jan Van Haaren
 This product includes software developed at UCLA and KU Leuven.
+
+Crane
+Copyright 2023 Paulius Dilkas (National University of Singapore)
+Crane extends Forclift with support for producing function definitions as output.
