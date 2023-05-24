@@ -381,7 +381,7 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
       //    given the domains.
         || {
           val eqClassesVars = eqClasses.map { _.removeConstants }
-          eqClassesVars.exists { eqClass1 =>
+          eqClassesVars.exists { eqClass1 => 
             val diffOther = atomConstrs.differentVars(eqClass1)
             val diffThis = thisConstrs.differentVars(eqClass1)
             eqClassesVars.exists { eqClass2 =>

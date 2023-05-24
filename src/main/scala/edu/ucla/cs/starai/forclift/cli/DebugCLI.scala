@@ -28,10 +28,13 @@ import edu.ucla.cs.starai.forclift.PositiveUnitClause
 import edu.ucla.cs.starai.forclift.languages.ModelConverters._
 import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
+import edu.ucla.cs.starai.forclift.nnf.visitors.SimplifyUsingWolfram
 
 /**
  * Handle all debugging logic for CLI
  */
+
+
 class DebugCLI(argumentParser: ArgotParser) {
   
   /* DEBUGGING FLAGS */
@@ -68,6 +71,12 @@ class DebugCLI(argumentParser: ArgotParser) {
     "Output the definitions of functions.")
   def outputFunctions = outputFunctionsFlag.value.getOrElse(false)
 
+  // New Addition
+  val simplifyFunctionFlag = argumentParser.flag[Boolean](
+    List("s", "simplify"),
+    "Simplifies the function using the Wolfram Engine.")
+  def simplifyFunctions = simplifyFunctionFlag.value.getOrElse(false)
+
   def runDebugging(inputCLI: InputCLI) {
     
     if (showGrounding) {
@@ -100,6 +109,17 @@ class DebugCLI(argumentParser: ArgotParser) {
     if (outputFunctions) {
       println()
       inputCLI.wcnfModel.toLatex.foreach{println(_)}
+      println()
+    }
+
+    // New adddition
+    if (simplifyFunctions) {
+      println()
+      inputCLI.wcnfModel.SimplifyInWolfram.foreach{
+        case variable => {
+          println(SimplifyUsingWolfram.SimplifyInWolfram(variable))
+        }
+      }
       println()
     }
   }

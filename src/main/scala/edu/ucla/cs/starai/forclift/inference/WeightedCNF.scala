@@ -25,6 +25,7 @@ import edu.ucla.cs.starai.forclift.conditioning._
 import edu.ucla.cs.starai.forclift.propositional._
 import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
+import edu.ucla.cs.starai.forclift.nnf.visitors.LatexOutputVisitor
 
 case class WeightedCNF(
   cnf: CNF,
@@ -85,6 +86,13 @@ case class WeightedCNF(
       functionIntroductionFinder.visit(nnf)
     LatexOutputVisitor(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
   }.flatten
+  
+  //New Addition
+  lazy val SimplifyInWolfram: List[String] = smoothNnfs.map{ nnf =>
+    val functionIntroductionFinder = new FunctionIntroductionFinder
+      functionIntroductionFinder.visit(nnf)
+    SimplifyUsingWolfram(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
+  }.flatten
 
   def verifyLogWmc {
 	VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)
@@ -94,6 +102,8 @@ case class WeightedCNF(
       throw new VerifyWmcVisitor.VerificationFailedException
     }
   }
+
+
 
   def logPropProbability(query: Atom) = {
     val cnfBuilder = toDimacsCNFBuilder
