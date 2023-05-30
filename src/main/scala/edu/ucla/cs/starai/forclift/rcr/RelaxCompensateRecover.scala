@@ -185,7 +185,7 @@ class RelaxCompensateRecover(
         println(relaxedCompensateCNF)
         println
       }
-      val ntZs = relaxedCompensateCNF.independentSubtheories.map { new CNFCircuit(compiler, _) }
+      val independentZs = relaxedCompensateCNF.independentSubtheories.map { new CNFCircuit(compiler, _) }
       if (verbose) {
         println("Relaxed Compensate CNF Independent Subtheories")
         println(independentZs.map { _.cnf }.mkString("\n--------------\n"))
