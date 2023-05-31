@@ -9,39 +9,43 @@ import edu.ucla.cs.starai.forclift.Clause
 import edu.ucla.cs.starai.forclift.Domain
 import scala.collection.mutable.Set
 import scala.collection.mutable.Map
+import scala.util.control.Breaks._
 
 /**
-  * The boolen is true if the term is +ve, else false.
+  * The boolean is true if the term is positive, else false.
   *
   * @param terms
   */
 class FuncArgument(var terms : List[(Boolean, String)]){ //represents a function argument of the form x1-x2 or x1-10-x2 or x2-0
-	def parseString(arg_str : String){
+	def parseString(arg_str : String): Unit = {
 		var temp = arg_str.split('-')
 		if (arg_str(0) == '-'){
 			val plus_loc = arg_str.indexOf('+')
-			val plus_term = ("x?[0-9]+"r).findFirstIn(arg_str.substring(plus_loc)).getOrElse("")
+			val plus_term = ("""x?[0-9]+"""r).findFirstIn(arg_str.substring(plus_loc)).getOrElse("")
 			if (plus_term == ""){
 				throw new IllegalStateException("Invalid argument: " + arg_str)
 			}
 			terms = List((true, plus_term))
+			for(t <- 0 to temp.length - 1)
+				terms = terms :+ (false, temp(t).split('+')(0))
 		}
 		else{
 			terms = List((true, temp(0)))
+			for(t <- 1 to temp.length - 1)
+				terms = terms :+ (false, temp(t))
 		}
-		for(t <- 1 to temp.length - 1)
-			terms :+ (false, temp(t).split('+')(0))
 	}
-	def this(arg : String) {
+
+	def this(arg : String){
 		this(List())
 		parseString(arg)
 	}
 }
 
 class FuncCall(var func_name: String, var args : List[FuncArgument]){  //represent a function call of the form f1(x1, x2-3, ..)
-	def parseString(call : String){
-		func_name = call.substring(0, call.indexOf('('))
-		args = call.substring(call.indexOf('(')+1, call.length()-2).split(',').map(str => new FuncArgument(str.replaceAll("\\s", ""))).toList
+	def parseString(call : String): Unit =  {
+		func_name = call.substring(0, call.indexOf('['))
+		args = call.substring(call.indexOf('[')+1, call.length()-1).split(',').map(str => new FuncArgument(str.replaceAll("\\s", ""))).toList
 	}
 	def this(call : String) {
 		this("", List())
@@ -62,14 +66,12 @@ object Basecases {
 		var removed_predicates : Set[Predicate] = Set()
 		var retained_predicates : Set[Predicate] = Set()
 		for (clause : Clause <- clauses){
-			var pos : Set[Atom] = Set()
-			var neg : Set[Atom] = Set()
 			//check if null_dom is present in the domain constraints of the clause
 			if (clause.constrs.elemConstrs.domains.contains(null_dom)){
 				removed_predicates ++= clause.predicates
 			}
 			else{
-				simplified_clauses = (simplified_clauses :+ clause)
+				simplified_clauses = simplified_clauses :+ clause
 				retained_predicates ++= clause.predicates
 			}
 		}
@@ -77,7 +79,7 @@ object Basecases {
 		return (simplified_clauses, removed_predicates.toList)
 	}
 	/**
-	  * Given a list of recursive equations, it finds the function call on the LHS and the function calls on the rhs, ie those required to find the lhs.
+	  * Given a list of recursive equations, it finds the function call on the LHS and the function calls on the rhs, i.e.  those required to find the lhs.
 	  *
 	  * @param equations list of equations.
 	  * @return a map of the dependencies of each function 
@@ -114,7 +116,7 @@ object Basecases {
 	}
 
 	def find_args(call_str: String, sep: Char = ','): List[String] = {
-		val str = call_str.replaceAll(" ", "")
+		val str = call_str.replaceAll("\\s", "")
 		var args: List[String] = List()
 		var num_open_brackets: Int = 0
 		var prev_sep: Int = 1
@@ -135,7 +137,38 @@ object Basecases {
 	}
 
 	//@TODO: expand the piecewise and sums in the equation
-	def expand_equation(eq: String) : String = {
+	def expand_equation(eq_str: String) : String = {
+		var eq = eq_str.replaceAll(" ", "")
+		//find the outermost Sum
+		var firstSumLoc: Int = eq.indexOf("Sum")
+		if (firstSumLoc == -1){
+			return eq
+		}
+		//finding the closing bracket
+		var sumClosingLoc : Int = 0
+		var numOpenBrackets : Int = 0
+		breakable{
+			for (i <- firstSumLoc to eq.length()-1){
+				if (eq(i) == '['){
+					numOpenBrackets += 1
+				}
+				else if (eq(i) == ']'){
+					numOpenBrackets -= 1;
+					if (numOpenBrackets == 0){
+						sumClosingLoc = i
+						break
+					}
+				}
+			}
+		}
+		//finding the arguments of Sum
+		var args : List[String] = find_args(eq.substring(firstSumLoc + 3, sumClosingLoc + 1))
+		//finding the variable iteration for the sum
+		var iter_var : String = args(1).substring(1, args(1).indexOf(','))
+		//check if the sum can be expanded
+		if (args(0).split('*')(args.split('*').length()-1).matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]".r)){
+			
+		}
 		return eq
 	}
 }
