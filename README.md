@@ -1,5 +1,7 @@
 # Crane
 
+[![DOI](https://zenodo.org/badge/612041640.svg)](https://zenodo.org/badge/latestdoi/612041640)
+
 ## How to Compile
 
 ```
