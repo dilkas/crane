@@ -23,3 +23,8 @@ sbt clean && sbt compile && sbt assembly
 * `-z` to (numerically) compute the weighted model count. Additional options:
   * `--propinf` to ditch first-order model counting and do propositional model counting instead
   * `PARALLEL=true` to evaluate each solution on its own thread (assuming that `GREEDY=false`)
+
+## References
+
+* Dilkas P., Belle V. **Synthesising Recursive Functions for First-Order Model Counting: Challenges, Progress, and Conjectures**. KR 2023.
+* Dilkas P. **Generalising Weighted Model Counting**. University of Edinburgh 2023.
