@@ -353,6 +353,9 @@ class SimplifyUsingWolfram(
   private[this] var nextFunctionIndex = 0
   private[this] var nextVariableIndex = 0
 
+  var clause_func_map : collection.mutable.Map[String, List[Clause]] = scala.collection.mutable.Map() //Maps the function names to the formula of which the model count is represented by the function
+  var var_domain_map : collection.mutable.Map[String, Domain] = scala.collection.mutable.Map() //Maps the variable names to the domain of which the size the variable represents
+
   override def visit(
       node: NNFNode,
       params: (Map[Domain, String], PredicateWeights)
@@ -521,9 +524,9 @@ class SimplifyUsingWolfram(
         )
     }
     (
-      "Piecewise[{{1, " + leaf.clause.constrs.constants.size + " <= " + variableNames(
+      "Boole[" + leaf.clause.constrs.constants.size + " <= " + variableNames(
         leaf.clause.domains.head
-      ) + " < " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "}}, 0]",
+      ) + " < " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "]",
       Nil
     )
   }
@@ -611,6 +614,7 @@ object SimplifyUsingWolfram {
       visitor.visit(source, (variableNames, predicateWeights))._2
     } else {
       val functionName = visitor.newFunctionName(source)
+      
       val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
       (functionName + "[" + initialDomains
         .map { variableNames(_) }
@@ -637,6 +641,7 @@ object SimplifyUsingWolfram {
 		var vars : List[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toList
 		var constraints : String = vars.mkString(">=0 && ") + ">=0 "
 		func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
+    println(func_rhs)
 		var cmd_seq = Seq(WolframPath, "-code", func_rhs)
 		var proc : ProcessBuilder = Process(cmd_seq, Some(new java.io.File(".")))
 		proc ! ExternalBinaries.stringLogger(output_r, output_r)
