@@ -227,18 +227,29 @@ object Basecases {
 		return eq
 	}
 
-	def find_base_cases(equations : List[String]): String = {
+	def find_base_cases(equations : List[String], clause_func_map : collection.mutable.Map[String, List[Clause]], var_domain_map : collection.mutable.Map[String, Domain]): List[String] = {
 		var expanded_equations : List[String] = equations.map(expand_equation(_))
 		var dependencies = find_function_dependency(expanded_equations)
 		dependencies.foreach(println(_))
-		val null_dom : String = find_null_domain(dependencies)
-		return null_dom
-	}
-}
+		val null_dom_var : String = find_null_domain(dependencies)
+		val null_dom : Domain = var_domain_map(null_dom_var)
+		//find the basecases for each function with this domain set to zero by first simplifying the clauses and then calling crane
+		//find basecases for only those functions which appear on the rhs of some equations
+		val rhs_func_set : scala.collection.immutable.Set[String] = dependencies.values.toList.flatMap( arg => arg.map(_.func_name)).toSet
+		val base_cases : List[String] = List()
+		for(func <- rhs_func_set){
+			//simplifying the corresponding clauses
+			val (simplified_clauses, removed_predicates) : (List[Clause], List[Predicate]) = SetDomainToZero(clause_func_map(func), null_dom)
+			//finding the base cases using crane
+			val simplified_cnf : CNF = new CNF(simplified_clauses)
+			val new_equations : List[String] = simplified_cnf.SimplifyUsingWolfram()
+			//multiply 2^(product of domain sizes of arguments of removed predicates) on the rhs of the function containing the model count of f0
 
-object test{
-    def main(args : Array[String]): Unit = {
-		val eq : List[String] = List("f0[x0] = Sum[(-1.)^(x0 - x1)*Binomial[x0, x1]*Sum[(-1.)^(x0 - x2)*Binomial[x0, x2]*f1[x1, x2], {x2, 0, x0}], {x1, 0, x0}]", "f1[x1, x2] = Sum[Binomial[x2, x3]*f1[-1 + x1, x2 - x3]*Piecewise[{{1, Inequality[0, LessEqual, x3, Less, 2]}}, 0], {x3, 0, x2}]")
-		println(Basecases.find_base_cases(eq))
+			//change the name f0 to func
+
+			//append these basecases to base_cases
+		}
+
+		return base_cases
 	}
 }

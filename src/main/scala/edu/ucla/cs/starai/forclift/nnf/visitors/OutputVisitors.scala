@@ -353,8 +353,9 @@ class SimplifyUsingWolfram(
   private[this] var nextFunctionIndex = 0
   private[this] var nextVariableIndex = 0
 
-  var clause_func_map : collection.mutable.Map[String, List[Clause]] = scala.collection.mutable.Map() //Maps the function names to the formula of which the model count is represented by the function
-  var var_domain_map : collection.mutable.Map[String, Domain] = scala.collection.mutable.Map() //Maps the variable names to the domain of which the size the variable represents
+  var clause_func_map : collection.mutable.Map[String, List[Clause]] = scala.collection.mutable.Map() //Maps the function names to the formula of which the model count is represented by the function.
+
+  var var_domain_map : collection.mutable.Map[String, Domain] = scala.collection.mutable.Map() //Maps the variable names to the domain of which the size the variable represents. Note that this stores references to the existing domain objects, and not copies of those objects.
 
   override def visit(
       node: NNFNode,
@@ -364,9 +365,12 @@ class SimplifyUsingWolfram(
     if (directSuccessorsOfRef.contains(node)) {
       // Start the definition of a new function
       val functionName = newFunctionName(node)
+      clause_func_map += (functionName -> node.cnf.toList)
       val newVariableNames = variableNames.map { case (domain, name) =>
         if (node.domains.contains(domain) && name.contains(" ")) {
-          (domain, newVariableName())
+          val varName = newVariableName()
+          var_domain_map += (varName -> domain)
+          (domain, varName)
         } else {
           (domain, name)
         }
@@ -608,13 +612,17 @@ object SimplifyUsingWolfram {
   ): List[String] = {
     val visitor = new SimplifyUsingWolfram(initialDomains, directSuccessorsOfRef, predicateWeights)
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
-      case (d, i) => (d, visitor.newVariableName())
+      case (d, i) => {
+        val varName : String = visitor.newVariableName()
+        visitor.var_domain_map += (varName -> d)
+        (d, varName)
+      }
     }: _*)
     if (directSuccessorsOfRef.contains(source)) {
       visitor.visit(source, (variableNames, predicateWeights))._2
     } else {
       val functionName = visitor.newFunctionName(source)
-      
+      visitor.clause_func_map += (functionName -> source.cnf.toList)
       val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
       (functionName + "[" + initialDomains
         .map { variableNames(_) }
