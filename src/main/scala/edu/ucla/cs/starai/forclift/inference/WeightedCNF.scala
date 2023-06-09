@@ -26,6 +26,7 @@ import edu.ucla.cs.starai.forclift.propositional._
 import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
 import edu.ucla.cs.starai.forclift.nnf.visitors.LatexOutputVisitor
+import edu.ucla.cs.starai.forclift.nnf.Basecases
 
 case class WeightedCNF(
   cnf: CNF,
@@ -91,7 +92,8 @@ case class WeightedCNF(
   lazy val SimplifyInWolfram: List[String] = smoothNnfs.map{ nnf =>
     val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
-    SimplifyUsingWolfram(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
+    val (recursions, clause_func_map, var_domain_map) : (List[String], scala.collection.mutable.Map[String, List[Clause]], scala.collection.mutable.Map[String, Domain]) = SimplifyUsingWolfram(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
+    (recursions ++ Basecases.find_base_cases(recursions, clause_func_map, var_domain_map, this))
   }.flatten
 
   def verifyLogWmc {

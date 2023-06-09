@@ -609,7 +609,7 @@ object SimplifyUsingWolfram {
       directSuccessorsOfRef: Set[NNFNode],
       predicateWeights: PredicateWeights,
       source: NNFNode
-  ): List[String] = {
+  ): (List[String], scala.collection.mutable.Map[String, List[Clause]], scala.collection.mutable.Map[String, Domain]) = {
     val visitor = new SimplifyUsingWolfram(initialDomains, directSuccessorsOfRef, predicateWeights)
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
       case (d, i) => {
@@ -619,14 +619,16 @@ object SimplifyUsingWolfram {
       }
     }: _*)
     if (directSuccessorsOfRef.contains(source)) {
-      visitor.visit(source, (variableNames, predicateWeights))._2
+      (visitor.visit(source, (variableNames, predicateWeights))._2, visitor.clause_func_map, visitor.var_domain_map)
     } else {
       val functionName = visitor.newFunctionName(source)
       visitor.clause_func_map += (functionName -> source.cnf.toList)
       val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
-      (functionName + "[" + initialDomains
+      val equations : List[String] = (functionName + "[" + initialDomains
         .map { variableNames(_) }
         .mkString(", ") + "] = " + expression) :: functions
+      val simplified_equations : List[String] = equations.map(SimplifyInWolfram(_))
+      (simplified_equations, visitor.clause_func_map, visitor.var_domain_map)
     }
   }
 
