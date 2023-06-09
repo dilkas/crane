@@ -10,8 +10,11 @@ import scala.util.matching.Regex
 import scala.collection.mutable.Set
 import scala.collection.mutable.Map
 import scala.util.control.Breaks._
+import edu.ucla.cs.starai.forclift.inference.WeightedCNF
+import scala.collection.mutable.ListBuffer
+import java.security.DomainCombiner
 
-/**
+/**	
   * The boolean is true if the term is positive, else false.
   *
   * @param terms
@@ -227,29 +230,41 @@ object Basecases {
 		return eq
 	}
 
-	def find_base_cases(equations : List[String], clause_func_map : collection.mutable.Map[String, List[Clause]], var_domain_map : collection.mutable.Map[String, Domain]): List[String] = {
+	def find_base_cases(equations : List[String], clause_func_map : collection.mutable.Map[String, List[Clause]], var_domain_map : collection.mutable.Map[String, Domain], wcnf : WeightedCNF): List[String] = {
 		var expanded_equations : List[String] = equations.map(expand_equation(_))
 		var dependencies = find_function_dependency(expanded_equations)
+		val domain_var_map : collection.mutable.Map[Domain, String] = var_domain_map.flatMap{case (key, value) => Seq(value->key)}
 		dependencies.foreach(println(_))
 		val null_dom_var : String = find_null_domain(dependencies)
 		val null_dom : Domain = var_domain_map(null_dom_var)
 		//find the basecases for each function with this domain set to zero by first simplifying the clauses and then calling crane
 		//find basecases for only those functions which appear on the rhs of some equations
 		val rhs_func_set : scala.collection.immutable.Set[String] = dependencies.values.toList.flatMap( arg => arg.map(_.func_name)).toSet
-		val base_cases : List[String] = List()
+		val base_cases : ListBuffer[String] = ListBuffer()
 		for(func <- rhs_func_set){
 			//simplifying the corresponding clauses
 			val (simplified_clauses, removed_predicates) : (List[Clause], List[Predicate]) = SetDomainToZero(clause_func_map(func), null_dom)
 			//finding the base cases using crane
 			val simplified_cnf : CNF = new CNF(simplified_clauses)
-			val new_equations : List[String] = simplified_cnf.SimplifyUsingWolfram()
+			val simplified_wcnf : WeightedCNF = new WeightedCNF(simplified_cnf, wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder)
+			val new_equations : ListBuffer[String] = ListBuffer() ++ simplified_wcnf.SimplifyInWolfram
 			//multiply 2^(product of domain sizes of arguments of removed predicates) on the rhs of the function containing the model count of f0
-
-			//change the name f0 to func
-
+			var multiplier : String = removed_predicates.map(pred => pred.domains.map(domain => {
+				if (domain == null_dom) "0"
+				else domain_var_map(domain)
+			}).mkString("*")).mkString("*")
+			multiplier = "2^(" + multiplier + ")"
+			val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
+			val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
+			new_equations(index_of_f0) = new_equations(index_of_f0).substring(0, index_of_equals + 1) + multiplier + "(" + new_equations(index_of_f0).substring(index_of_equals+1) + ")"
+			//change the variable names to the previous ones
+			
+			//change the name f0 to func and change the other function names(f1, f2, ...) too to some non-overlapping names
+			
 			//append these basecases to base_cases
+			base_cases ++= new_equations
 		}
 
-		return base_cases
+		return base_cases.toList
 	}
 }
