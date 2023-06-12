@@ -438,6 +438,7 @@ class SimplifyUsingWolfram(
     val (variableNames, predicateWeights) = params
     val n = variableNames(exists.domain)
     val m = newVariableName()
+    var_domain_map += (m -> exists.subdomain)
     val newVariableNames = variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
     val (expression, functions) = visit(exists.child.get, (newVariableNames, predicateWeights))
     (s"Sum[Binomial[$n, $m] * $expression, {$m, 0, $n}]", functions)
@@ -528,9 +529,9 @@ class SimplifyUsingWolfram(
         )
     }
     (
-      "Boole[" + leaf.clause.constrs.constants.size + " <= " + variableNames(
+      "Piecewise[{{1, " + leaf.clause.constrs.constants.size + " <= " + variableNames(
         leaf.clause.domains.head
-      ) + " < " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "]",
+      ) + " < " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "}}, 0]",
       Nil
     )
   }

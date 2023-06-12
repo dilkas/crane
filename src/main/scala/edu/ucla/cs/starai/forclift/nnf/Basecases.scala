@@ -123,10 +123,11 @@ object Basecases {
 		for(arg <- rhs_arg_list if (arg.terms.length != 2 || arg.terms(1)._2 != "1")){
 			rhs_var_map(arg.terms(0)._2) = false
 		}
+		println(rhs_var_map.toString())
 		for ((key, value) <- rhs_var_map if value && ret_val == ""){
 			ret_val = key
 		}
-		if(ret_val == "")
+		if(ret_val == "" && rhs_var_map.size != 0)
 			throw new IllegalStateException("No Null Domain Found")
 		return ret_val
 	}
@@ -232,10 +233,21 @@ object Basecases {
 
 	def find_base_cases(equations : List[String], clause_func_map : collection.mutable.Map[String, List[Clause]], var_domain_map : collection.mutable.Map[String, Domain], wcnf : WeightedCNF): List[String] = {
 		var expanded_equations : List[String] = equations.map(expand_equation(_))
+		println("\n==============================\n")
+		expanded_equations.foreach(println(_))
+		println("\n==============================\n")
 		var dependencies = find_function_dependency(expanded_equations)
 		val domain_var_map : collection.mutable.Map[Domain, String] = var_domain_map.flatMap{case (key, value) => Seq(value->key)}
+		println("\n==============================\nDependencies\n")
 		dependencies.foreach(println(_))
+		println("\n==============================\n")
 		val null_dom_var : String = find_null_domain(dependencies)
+		if (null_dom_var == ""){
+			return List[String]()
+		}
+		// println("\n==============================\nvar_domain_map\n")
+		// println(var_domain_map.toString())
+		// println("\n==============================\n")
 		val null_dom : Domain = var_domain_map(null_dom_var)
 		//find the basecases for each function with this domain set to zero by first simplifying the clauses and then calling crane
 		//find basecases for only those functions which appear on the rhs of some equations
@@ -244,15 +256,25 @@ object Basecases {
 		for(func <- rhs_func_set){
 			//simplifying the corresponding clauses
 			val (simplified_clauses, removed_predicates) : (List[Clause], List[Predicate]) = SetDomainToZero(clause_func_map(func), null_dom)
-			//finding the base cases using crane
-			val simplified_cnf : CNF = new CNF(simplified_clauses)
-			val simplified_wcnf : WeightedCNF = new WeightedCNF(simplified_cnf, wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder)
-			val new_equations : ListBuffer[String] = ListBuffer() ++ simplified_wcnf.SimplifyInWolfram
+			val new_equations : ListBuffer[String] = ListBuffer()
+			if (simplified_clauses.size == 0){
+				//If there are no clauses after simplification, then there is only one satisfuing model, so no need to call crane
+				val index_of_func : Int = equations.indexWhere(_.startsWith(func))
+				val index_of_equals : Int = equations(index_of_func).indexOf('=')
+				val trivial_eqn : String = equations(index_of_func).substring(0, index_of_equals).replaceAll(func, "f0") + "= 1"
+				new_equations += trivial_eqn
+			}
+			else{
+				//finding the base cases using crane
+				val simplified_cnf : CNF = new CNF(simplified_clauses)
+				val simplified_wcnf : WeightedCNF = new WeightedCNF(simplified_cnf, wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder)
+				new_equations ++= simplified_wcnf.SimplifyInWolfram
+			}
 			//multiply 2^(product of domain sizes of arguments of removed predicates) on the rhs of the function containing the model count of f0
 			var multiplier : String = removed_predicates.map(pred => pred.domains.map(domain => {
 				if (domain == null_dom) "0"
 				else domain_var_map(domain)
-			}).mkString("*")).mkString("*")
+			}).mkString("*")).mkString("+")
 			multiplier = "2^(" + multiplier + ")"
 			val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
 			val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
