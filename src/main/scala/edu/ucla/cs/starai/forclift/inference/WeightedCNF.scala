@@ -88,16 +88,19 @@ case class WeightedCNF(
     LatexOutputVisitor(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
   }.flatten
   
+  var varDomainMap : collection.mutable.Map[String, Domain] = collection.mutable.Map()
+
   //New Addition
   lazy val SimplifyInWolfram: List[String] = smoothNnfs.map{ nnf =>
     val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
     val (recursions, clause_func_map, var_domain_map) : (List[String], scala.collection.mutable.Map[String, List[Clause]], scala.collection.mutable.Map[String, Domain]) = SimplifyUsingWolfram(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
+    varDomainMap ++= var_domain_map
 
     val redColor = "\u001b[31m"
     val resetColor = "\u001b[0m"
-
     println(redColor + "=====================\n" + " var_domain_map in WCNF " + var_domain_map.toString() + resetColor)
+
     (recursions ++ Basecases.find_base_cases(recursions, clause_func_map, var_domain_map, this))
   }.flatten
 
