@@ -115,11 +115,7 @@ class DebugCLI(argumentParser: ArgotParser) {
     // New adddition
     if (simplifyFunctions) {
       println()
-      inputCLI.wcnfModel.SimplifyInWolfram.foreach{
-        case variable => {
-          println(variable)
-        }
-      }
+      inputCLI.wcnfModel.SimplifyInWolfram.foreach{println(_)}
       println()
     }
   }
