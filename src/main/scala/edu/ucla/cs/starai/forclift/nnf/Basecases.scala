@@ -60,7 +60,7 @@ class FuncCall(var func_name: String, var args : List[FuncArgument]){  //represe
 		parseString(call)
 	}
 	override def toString(): String = {
-		return func_name + "(" + args.map(_.toString()).mkString(", ") + ")"
+		return func_name + "[" + args.map(_.toString()).mkString(",") + "]"
 	}
 }
 
@@ -229,6 +229,40 @@ object Basecases {
 			}
 		}
 		return eq
+	}
+
+	def get_sufficient_base_case_set(dependencies : Map[FuncCall, scala.collection.immutable.Set[FuncCall]]) : Set[String] = {
+		var base_cases : mutable.Set[String] = mutable.Set()
+		for (dependency <- dependencies){
+			for (rhs_func <- dependency._2){
+				if (rhs_func.func_name == dependency._1.func_name){
+					for (arg <- rhs_func.args){
+						if (arg.terms.length > 2)
+							throw new IllegalStateException("This type of term not supported")
+						else if (arg.terms.length == 2){
+							val lim : Int = arg.terms(1)._2.toInt - 1
+							for (l <- 0 to lim){
+								base_cases += dependency._1.toString().replace(arg.terms(0)._2, l.toString())
+							}
+						}
+					}
+				}
+				else {
+					for (arg <- rhs_func.args){
+						if (arg.terms.length > 2)
+							throw new IllegalStateException("This type of term not supported")
+						else if (arg.terms.length == 2){
+							val lim : Int = arg.terms(1)._2.toInt - 1
+							for (l <- 0 to lim){
+								base_cases += dependency._1.toString().replace(arg.terms(0)._2, l.toString())
+								base_cases += (rhs_func.func_name + "[" + rhs_func.args.map(_.terms(2)._2).mkString(",") + "]").replace(arg.terms(0)._2, l.toString())
+							}
+						}
+					}
+				}
+			}
+		}
+		return base_cases
 	}
 
 	def find_base_cases(equations : List[String], clause_func_map : collection.mutable.Map[String, List[Clause]], var_domain_map : collection.mutable.Map[String, Domain], wcnf : WeightedCNF): List[String] = {
