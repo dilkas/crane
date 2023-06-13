@@ -651,7 +651,10 @@ object SimplifyUsingWolfram {
 		var func_rhs : String = PreProcessInput(exp)
 		var vars : List[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toList
 		var constraints : String = vars.mkString(">=0 && ") + ">=0 "
-		func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
+    if (vars.length == 0)
+      func_rhs = "Simplify[ " + func_rhs + "]" 
+    else  
+      func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
     println(func_rhs)
 		var cmd_seq = Seq(WolframPath, "-code", func_rhs)
 		var proc : ProcessBuilder = Process(cmd_seq, Some(new java.io.File(".")))
