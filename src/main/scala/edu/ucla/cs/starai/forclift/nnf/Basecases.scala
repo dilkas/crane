@@ -193,12 +193,24 @@ object Basecases {
 		// println("first_char: " + args(1)(0).toInt + "|")
 		// println(eq)
 		// println(eq_str)
+		//check if there is a piecewise term in the argument
+		var num_open_brackets : Int = 0
+		var modified_arg0 : StringBuilder = new StringBuilder(args(0))
+		for (index <- 0 to args(0).length()) {
+			modified_arg0(index) match {
+				case '{' => num_open_brackets += 1
+				case '}' => num_open_brackets -= 1
+				case '*' => if (num_open_brackets == 0){modified_arg0.replace(index, index+1, "_")}
+			}
+		}
+		var prod_terms : Array[String] = modified_arg0.split('_')
+		val pw_index : Int = prod_terms.indexWhere(_.matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]"))
 		//check if the sum can be expanded
-		if (args(0).split('*')((args(0).split('*')).length-1).matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]")){
+		if (pw_index != -1){
 			//find the inequality inside the piecewise function
-			val piecewise : String = args(0).split('*')((args(0).split('*')).length-1)
+			val piecewise : String = prod_terms(pw_index)
 			var ineq_args : List[String] = find_args(("Inequality\\[[a-zA-Z0-9,]*\\]".r).findFirstIn(piecewise).getOrElse("").replaceAll("Inequality", ""))
-			var rest : String = args(0).split('*').dropRight(1).mkString("*")
+			var rest : String = (prod_terms.slice(0, pw_index) ++ prod_terms.slice(pw_index + 1, prod_terms.length)).mkString("*")
 			if (ineq_args.length == 5){
 				//find the inequality constraints on the summation variable
 				if(ineq_args(2) != iter_var)
