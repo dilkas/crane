@@ -605,6 +605,13 @@ class SimplifyUsingWolfram(
 
 object SimplifyUsingWolfram {
 
+
+  def print_in_red(s : String) : Unit = {
+		val redColor = "\u001b[31m"
+		val resetColor = "\u001b[0m"
+		println(redColor + s + resetColor)
+	}
+
   def apply(
       initialDomains: Set[Domain],
       directSuccessorsOfRef: Set[NNFNode],
@@ -622,6 +629,7 @@ object SimplifyUsingWolfram {
     if (directSuccessorsOfRef.contains(source)) {
       (visitor.visit(source, (variableNames, predicateWeights))._2, visitor.clause_func_map, visitor.var_domain_map)
     } else {
+      print_in_red("else in apply of outputvisitor")
       val functionName = visitor.newFunctionName(source)
       visitor.clause_func_map += (functionName -> source.cnf.toList)
       val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))

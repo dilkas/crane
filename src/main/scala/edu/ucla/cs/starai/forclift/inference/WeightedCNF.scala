@@ -97,9 +97,9 @@ case class WeightedCNF(
     val (recursions, clause_func_map, var_domain_map) : (List[String], scala.collection.mutable.Map[String, List[Clause]], scala.collection.mutable.Map[String, Domain]) = SimplifyUsingWolfram(domainSizes.domains, functionIntroductionFinder.nodes, predicateWeights, nnf)
     varDomainMap ++= var_domain_map
 
-    val redColor = "\u001b[31m"
-    val resetColor = "\u001b[0m"
-    println(redColor + "=====================\n" + " var_domain_map in WCNF " + var_domain_map.toString() + resetColor)
+    // val redColor = "\u001b[31m"
+    // val resetColor = "\u001b[0m"
+    // println(redColor + "=====================\n" + " var_domain_map in WCNF " + var_domain_map.toString() + resetColor)
 
     (recursions ++ Basecases.find_base_cases(recursions, clause_func_map, var_domain_map, this))
   }.flatten
