@@ -333,7 +333,9 @@ object Basecases {
 						} 
 						val new_cosntr = Constraints(elemConstrs = clause.constrs.elemConstrs)
 						val new_clause : Clause = Clause(new_posList.toList, new_negList.toList, new_cosntr)
-						simplified_clauses += new_clause
+						if (new_posList.size != 0 || new_negList.size != 0){
+							simplified_clauses += new_clause
+						}
 						// removed_predicates ++= clause.predicates
 					}
 					else{
@@ -492,7 +494,7 @@ object Basecases {
 					val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
 					val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
 					val func_equation : String = expanded_equations(expanded_equations.indexWhere(_.startsWith(func)))
-					new_equations(index_of_f0) = base_case_lhs + "=" + multiplier + "(" + new_equations(index_of_f0).substring(index_of_equals+1) + ")"
+					new_equations(index_of_f0) = base_case_lhs + "=" + (if (multiplier != "1")  (multiplier + "(") else "") + new_equations(index_of_f0).substring(index_of_equals+1) + (if (multiplier != "1") ")" else "")
 					println("new_equations : ==============\n" + new_equations.toString() + "\n===================")
 					//append these basecases to base_cases
 					base_cases ++= new_equations

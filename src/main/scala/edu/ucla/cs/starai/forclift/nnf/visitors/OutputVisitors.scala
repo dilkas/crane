@@ -510,10 +510,13 @@ class SimplifyUsingWolfram(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    if (leaf.clause.domains.size != 1)
+    if (leaf.clause.domains.size != 1){
+      println("==========CNF : ================")
+      println(leaf.cnf)
       throw new IllegalStateException(
         "Contradiction clauses with more than one domain are not supported (but support for them could easily be added if need-be)"
       )
+    }
     for (variable <- leaf.clause.constrVariables) {
       if (
         !leaf.clause.constrs
@@ -626,8 +629,9 @@ object SimplifyUsingWolfram {
         (d, varName)
       }
     }: _*)
+    print_in_red("+++++apply of SimplifyUsingWolfram+++++++++++++++")
     if (directSuccessorsOfRef.contains(source)) {
-      (visitor.visit(source, (variableNames, predicateWeights))._2, visitor.clause_func_map, visitor.var_domain_map)
+      ((visitor.visit(source, (variableNames, predicateWeights))._2).map(SimplifyInWolfram(_)), visitor.clause_func_map, visitor.var_domain_map)
     } else {
       print_in_red("else in apply of outputvisitor")
       val functionName = visitor.newFunctionName(source)
