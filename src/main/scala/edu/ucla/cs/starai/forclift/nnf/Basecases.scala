@@ -13,6 +13,7 @@ import scala.collection.mutable.Map
 import scala.util.control.Breaks._
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import scala.collection.mutable.ListBuffer
+import edu.ucla.cs.starai.forclift.constraints.Constraints
 
 /**	
   * The boolean is true if the term is positive, else false.
@@ -294,53 +295,97 @@ object Basecases {
 			case 0 => {
 				print_in_red("entering case 0 with domain : " + const_domain.toString())
 				val domain_var_map : collection.mutable.Map[Domain, String] = var_domain_map.flatMap{case (key, value) => Seq(value->key)}
-				var simplified_clauses : List[Clause] = List()
+				var simplified_clauses : ListBuffer[Clause] = ListBuffer()
 				var removed_predicates : Set[Predicate] = Set()
 				var retained_predicates : Set[Predicate] = Set()
-				for (clause : Clause <- wcnf.cnf.self){
+				var contains_null_const : Boolean = false
+				for (clause : Clause <- wcnf.cnf.self if !contains_null_const){
 					//check if null_dom is present in the domain constraints of the clause
 					if (clause.constrs.elemConstrs.domains.contains(const_domain)){
-						removed_predicates ++= clause.predicates
+						//check if there is a predicate none of  whose arguments belong to the null domain
+						val new_posList : ListBuffer[Atom] = ListBuffer()
+						val new_negList : ListBuffer[Atom] = ListBuffer()
+						for (atom <- clause.atoms if !contains_null_const){
+							var contains_null_dom : Boolean = false
+							for (arg <- atom.args if !contains_null_const){
+								arg match {
+									case variable : Var => {
+										if (clause.constrs.elemConstrs(variable) == const_domain){
+											contains_null_dom = true
+										}
+									}
+									case const : Constant => {
+										if (const.domain == const_domain){
+											contains_null_const = true
+										}
+									}
+									case _ => {
+										throw new IllegalStateException("Invalid member having trait Term")
+									}
+								}
+							}
+							if (!contains_null_dom && !contains_null_const){
+								new_posList += atom
+								if (new_posList.size == 1){
+									new_negList += atom
+								}
+							}
+						} 
+						val new_cosntr = Constraints(elemConstrs = clause.constrs.elemConstrs)
+						val new_clause : Clause = Clause(new_posList.toList, new_negList.toList, new_cosntr)
+						simplified_clauses += new_clause
+						// removed_predicates ++= clause.predicates
 					}
 					else{
-						simplified_clauses = simplified_clauses :+ clause
-						retained_predicates ++= clause.predicates
+						simplified_clauses += clause
+						// retained_predicates ++= clause.predicates
 					}
 				}
-				removed_predicates --= retained_predicates
-				var multiplier : String = removed_predicates.map(pred => pred.domains.map(domain => {
-					if (domain == const_domain) "0"
-					else domain_var_map(domain)
-				}).mkString("*")).mkString("+")
-				multiplier = "2^(" + multiplier + ")"
-				transformed_clauses += ((new WeightedCNF(new CNF(simplified_clauses), wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder), multiplier))
+				// removed_predicates --= retained_predicates
+				// var multiplier : String = removed_predicates.map(pred => pred.domains.map(domain => {
+				// 	if (domain == const_domain) "0"
+				// 	else domain_var_map(domain)
+				// }).mkString("*")).mkString("+")
+				// multiplier = "2^(" + multiplier + ")"
+				var multiplier : String =  (if (contains_null_const) "0" else "1")
+				transformed_clauses += ((new WeightedCNF(new CNF(simplified_clauses.toList), wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder), multiplier))
 			}
 			case 1 => {
-				val existingIndices = wcnf.cnf.constants.filter {
-					_.value.isInstanceOf[BaseCaseIndexedConstant]
-				}.map { _.value.asInstanceOf[BaseCaseIndexedConstant].i }.toSet
-				val newIndex = Stream.from(0).find { index => !existingIndices(index) }.get
-				val c = new Constant(new BaseCaseIndexedConstant(newIndex))
-				val new_const : Constant = c.setDomain(const_domain)
-				val new_clauses = wcnf.cnf.clauses.flatMap{ clause => 
-					val vars = clause.literalVariables.filter {
-						clause.constrs.domainFor(_).equals(const_domain)
+				val constants_in_unit_domain : immutable.Set[Constant] = wcnf.cnf.constants.filter( _.domain == const_domain)
+				if (constants_in_unit_domain.size <= 1){
+					val existingIndices = wcnf.cnf.constants.filter {
+						_.value.isInstanceOf[BaseCaseIndexedConstant]
+					}.map { _.value.asInstanceOf[BaseCaseIndexedConstant].i }.toSet
+					val newIndex = Stream.from(0).find { index => !existingIndices(index) }.get
+					val c = new Constant(new BaseCaseIndexedConstant(newIndex))
+					val new_const : Constant = constants_in_unit_domain.size match {
+						case 0 => c.setDomain(const_domain)
+						case 1 => constants_in_unit_domain.toList(0)
 					}
-					val new_clause : Option[Clause] = clause.substituteOption( (variable: Var)=> 
-						if (vars.contains(variable)){
-							new_const
+					val new_clauses = wcnf.cnf.clauses.flatMap{ clause => 
+						val vars = clause.literalVariables.filter {
+							clause.constrs.domainFor(_).equals(const_domain)
 						}
-						else{
-							variable
+						val new_clause : Option[Clause] = clause.substituteOption( (variable: Var)=> 
+							if (vars.contains(variable)){
+								new_const
+							}
+							else{
+								variable
+							}
+						)
+						new_clause match {
+							case Some(s) => List(s)
+							case None => List()
 						}
-					)
-					new_clause match {
-						case Some(s) => List(s)
-						case None => List()
 					}
+					var contains_unit_domain : Boolean = false
+					val multiplier : String = "1"
+					transformed_clauses += ((new WeightedCNF(new CNF(new_clauses), wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder), multiplier))
 				}
-				val multiplier : String = "1"
-				transformed_clauses += ((new WeightedCNF(new CNF(new_clauses), wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder), multiplier))
+				else{
+					transformed_clauses += ((wcnf, "0"))
+				}
 			}
 			case _ => {	
 				throw new IllegalStateException("No support for base cases with more than 2 elements in a domain")
@@ -373,83 +418,87 @@ object Basecases {
 			println("transformed_wcnf : ==============\n" + transformed_wcnf.toString() + "\n===================")
 			val func : String = signature.func_name
 			for ((simplified_wcnf : WeightedCNF, multiplier : String) <- transformed_wcnf){
-				val simplified_clauses : immutable.Set[Clause] = simplified_wcnf.cnf.self
-				val new_equations : ListBuffer[String] = ListBuffer()
-				var base_case_var_domain_map : scala.collection.mutable.Map[String, Domain] = Map()
-				if (simplified_clauses.size == 0){
-					//If there are no clauses after simplification, then there is only one satisfying model, so no need to call crane
-					//this can happen only if a domain is made empty
-					val index_of_func : Int = expanded_equations.indexWhere(_.startsWith(func))
-					val index_of_equals : Int = expanded_equations(index_of_func).indexOf('=')
-					val trivial_eqn : String = expanded_equations(index_of_func).substring(0, index_of_equals).replaceAll(func, "f0") + "= 1"
-					new_equations += trivial_eqn
+				if (multiplier == "0"){
+					base_cases += (base_case_lhs + " = 0")
 				}
 				else{
-					//finding the base cases using crane
-					new_equations ++= simplified_wcnf.SimplifyInWolfram
-					base_case_var_domain_map = simplified_wcnf.varDomainMap
-
-					new_equations.transform(_.replaceAll(" ", ""))
-					println("New Equations============\n" + new_equations + "\n=======================")
-					//change the variable names to the previous ones
-					//do this only for the free variables, i.e. those occuring as parameters for the equation containing x0 on the lhs
-					//if there is a collision, resolve it by changing the other variable to a new one
-					var maxVarNumber : Int = (expanded_equations ++ new_equations).map(("x[0-9]+".r).findAllIn(_)).flatten.map(v => v.substring(1).toInt).max
+					val simplified_clauses : immutable.Set[Clause] = simplified_wcnf.cnf.self
+					val new_equations : ListBuffer[String] = ListBuffer()
+					var base_case_var_domain_map : scala.collection.mutable.Map[String, Domain] = Map()
+					if (simplified_clauses.size == 0){
+						//If there are no clauses after simplification, then there is only one satisfying model, so no need to call crane
+						//this can happen only if a domain is made empty
+						val index_of_func : Int = expanded_equations.indexWhere(_.startsWith(func))
+						val index_of_equals : Int = expanded_equations(index_of_func).indexOf('=')
+						val trivial_eqn : String = expanded_equations(index_of_func).substring(0, index_of_equals).replaceAll(func, "f0") + "= 1"
+						new_equations += trivial_eqn
+					}
+					else{
+						//finding the base cases using crane
+						new_equations ++= simplified_wcnf.SimplifyInWolfram
+						base_case_var_domain_map = simplified_wcnf.varDomainMap
+	
+						new_equations.transform(_.replaceAll(" ", ""))
+						println("New Equations============\n" + new_equations + "\n=======================")
+						//change the variable names to the previous ones
+						//do this only for the free variables, i.e. those occuring as parameters for the equation containing x0 on the lhs
+						//if there is a collision, resolve it by changing the other variable to a new one
+						var maxVarNumber : Int = (expanded_equations ++ new_equations).map(("x[0-9]+".r).findAllIn(_)).flatten.map(v => v.substring(1).toInt).max
+						val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
+						val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
+						val free_vars : scala.collection.immutable.Set[String] = new_equations(index_of_f0).substring(3, index_of_equals + 1).split(',').map(_.replaceAll(" ", "")).toSet
+						val f0_bounded_vars : scala.collection.immutable.Set[String] = ("x[0-9]+".r).findAllIn(new_equations(index_of_f0)).toSet.diff(free_vars)
+						println("Base case var domain map =================\n" + base_case_var_domain_map + "\n=========================")
+						for (free_var <- free_vars){
+							val to_replace : String = domain_var_map(base_case_var_domain_map(free_var))
+							if (to_replace != free_var){
+								//check if there is a collision and handle it
+								if (f0_bounded_vars.contains(to_replace)){
+									//get a new variable name
+									maxVarNumber += 1
+									val newVarName = "x" + maxVarNumber.toString()
+									new_equations(index_of_f0).replaceAll(to_replace, newVarName)
+								}
+							}
+							new_equations(index_of_f0).replaceAll(free_var, "y" + to_replace.substring(1))
+						}
+						new_equations(index_of_f0).replace('y', 'x')
+						//make the occurrences of f0 in the rest of the equations in `new_equations` consistent with the convention used on `func` in the previous equations
+						val func_equation : String = expanded_equations(expanded_equations.indexWhere(_.startsWith(func)))
+						val our_func_args : Array[String] = find_args(new_equations(index_of_f0).substring(new_equations(index_of_f0).indexOf('['), new_equations(index_of_f0).indexOf('='))).toArray
+						val actual_func_args : Array[String] = find_args(base_case_lhs.substring(base_case_lhs.indexOf('['))).toArray
+						val index_map : scala.collection.mutable.Map[Int, Int] = Map()
+						for(index <- 0 to our_func_args.length){
+							index_map += (index -> actual_func_args.indexOf(our_func_args(index)))
+						}
+						new_equations.transform("f0\\[[x0-9,\\-\\+]*\\]".r.replaceAllIn(_, call => {
+							val args : Array[String] = find_args(call.toString().substring(2)).toArray
+							var transformed_args : Array[String] = actual_func_args.clone()
+							for(index <- 0 to args.length){
+								transformed_args(index_map(index)) = args(index)
+							}
+							"f0[" + transformed_args.mkString(", ") + "]"
+						}))
+					}
+					
+					//change the name f0 to func and change the other function names(f1, f2, ...) too to some non-overlapping names
+					var maxFuncNumber : Int = (expanded_equations ++ new_equations).map(("f[0-9]+".r).findAllIn(_)).flatten.map(v => v.substring(1).toInt).max
+					val func_names : scala.collection.immutable.Set[String] =  new_equations.flatMap(("f[0-9]".r).findAllIn(_)).toSet - "f0"
+					for(func_name <- func_names){
+						maxFuncNumber += 1
+						val new_func_name : String = "f" + maxFuncNumber.toString()
+						new_equations.transform(_.replaceAll(func_name, new_func_name))
+					}
 					val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
 					val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
-					val free_vars : scala.collection.immutable.Set[String] = new_equations(index_of_f0).substring(3, index_of_equals + 1).split(',').map(_.replaceAll(" ", "")).toSet
-					val f0_bounded_vars : scala.collection.immutable.Set[String] = ("x[0-9]+".r).findAllIn(new_equations(index_of_f0)).toSet.diff(free_vars)
-					println("Base case var domain map =================\n" + base_case_var_domain_map + "\n=========================")
-					for (free_var <- free_vars){
-						val to_replace : String = domain_var_map(base_case_var_domain_map(free_var))
-						if (to_replace != free_var){
-							//check if there is a collision and handle it
-							if (f0_bounded_vars.contains(to_replace)){
-								//get a new variable name
-								maxVarNumber += 1
-								val newVarName = "x" + maxVarNumber.toString()
-								new_equations(index_of_f0).replaceAll(to_replace, newVarName)
-							}
-						}
-						new_equations(index_of_f0).replaceAll(free_var, "y" + to_replace.substring(1))
-					}
-					new_equations(index_of_f0).replace('y', 'x')
-					//make the occurrences of f0 in the rest of the equations in `new_equations` consistent with the convention used on `func` in the previous equations
 					val func_equation : String = expanded_equations(expanded_equations.indexWhere(_.startsWith(func)))
-					val our_func_args : Array[String] = find_args(new_equations(index_of_f0).substring(new_equations(index_of_f0).indexOf('['), new_equations(index_of_f0).indexOf('='))).toArray
-					val actual_func_args : Array[String] = find_args(base_case_lhs.substring(base_case_lhs.indexOf('['))).toArray
-					val index_map : scala.collection.mutable.Map[Int, Int] = Map()
-					for(index <- 0 to our_func_args.length){
-						index_map += (index -> actual_func_args.indexOf(our_func_args(index)))
-					}
-					new_equations.transform("f0\\[[x0-9,\\-\\+]*\\]".r.replaceAllIn(_, call => {
-						val args : Array[String] = find_args(call.toString().substring(2)).toArray
-						var transformed_args : Array[String] = actual_func_args.clone()
-						for(index <- 0 to args.length){
-							transformed_args(index_map(index)) = args(index)
-						}
-						"f0[" + transformed_args.mkString(", ") + "]"
-					}))
+					new_equations(index_of_f0) = base_case_lhs + "=" + multiplier + "(" + new_equations(index_of_f0).substring(index_of_equals+1) + ")"
+					println("new_equations : ==============\n" + new_equations.toString() + "\n===================")
+					//append these basecases to base_cases
+					base_cases ++= new_equations
 				}
-				
-				//change the name f0 to func and change the other function names(f1, f2, ...) too to some non-overlapping names
-				var maxFuncNumber : Int = (expanded_equations ++ new_equations).map(("f[0-9]+".r).findAllIn(_)).flatten.map(v => v.substring(1).toInt).max
-				val func_names : scala.collection.immutable.Set[String] =  new_equations.flatMap(("f[0-9]".r).findAllIn(_)).toSet - "f0"
-				for(func_name <- func_names){
-					maxFuncNumber += 1
-					val new_func_name : String = "f" + maxFuncNumber.toString()
-					new_equations.transform(_.replaceAll(func_name, new_func_name))
-				}
-				val index_of_f0 : Int = new_equations.indexWhere(_.startsWith("f0"))
-				val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
-				val func_equation : String = expanded_equations(expanded_equations.indexWhere(_.startsWith(func)))
-				new_equations(index_of_f0) = base_case_lhs + "=" + multiplier + "(" + new_equations(index_of_f0).substring(index_of_equals+1) + ")"
-				println("new_equations : ==============\n" + new_equations.toString() + "\n===================")
-				//append these basecases to base_cases
-				base_cases ++= new_equations
 			}
 		}
-		
 		println("basecases : ==============\n" + base_cases.toString() + "\n===================")
 		base_cases.toList
 	}	
