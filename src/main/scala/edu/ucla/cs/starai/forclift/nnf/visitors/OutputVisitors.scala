@@ -661,9 +661,9 @@ object SimplifyUsingWolfram {
 		func_lhs = ""
 		var output_r = new ListBuffer[String]()
 		var func_rhs : String = PreProcessInput(exp)
-		var vars : List[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toList
+		var vars : Set[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toSet
 		var constraints : String = vars.mkString(">=0 && ") + ">=0 "
-    if (vars.length == 0)
+    if (vars.size == 0)
       func_rhs = "Simplify[ " + func_rhs + "]" 
     else  
       func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
