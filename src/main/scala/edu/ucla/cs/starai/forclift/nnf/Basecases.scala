@@ -257,7 +257,7 @@ object Basecases {
 				var prefix = firstSumLoc match {
 					case 0 => "" 
 					case _ => eq.substring(0, firstSumLoc)
-				} 
+				}
 				var suffix = ""
 				if (sumClosingLoc != eq.length()-1){
 					suffix = eq.substring(sumClosingLoc+1)
@@ -472,6 +472,7 @@ object Basecases {
 			val const_domain : Domain = var_domain_map(signature.args(diff_index).terms(0)._2)
 			val func_wcnf : WeightedCNF = new WeightedCNF(new CNF(clause_func_map(base_case_lhs_call.func_name)), wcnf.domainSizes, wcnf.predicateWeights, wcnf.conditionedAtoms, wcnf.compilerBuilder)
 			print_in_red("null_var: " + signature.args(diff_index).terms(0)._2)
+			println("===================\n" + clause_func_map.toString() + "\n==================================")
 			val transformed_wcnf : ListBuffer[(WeightedCNF, String)] = transform_clauses(base_case_lhs_call, func_wcnf, const_domain, var_domain_map)
 			if (transformed_wcnf.size != 0){
 				print_in_red("func_wcnf: =========\n" + func_wcnf.toString() + "\n=======================")
@@ -564,6 +565,14 @@ object Basecases {
 						val index_of_equals : Int = new_equations(index_of_f0).indexOf('=')
 						val func_equation : String = expanded_equations(expanded_equations.indexWhere(_.startsWith(func)))
 						new_equations(index_of_f0) = base_case_lhs + "=" + (if (multiplier != "1")  (multiplier + "(") else "") + new_equations(index_of_f0).substring(index_of_equals+1) + (if (multiplier != "1") ")" else "")
+						//find the constant
+						var const : Int = -1
+						for (arg <- base_case_lhs_call.args){
+							if (arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")){
+								const = arg.terms(0)._2.toInt
+							}
+						}
+						new_equations(index_of_f0) = new_equations(index_of_f0).replaceAll(domain_var_map(const_domain), const.toString())
 						println("new_equations : ==============\n" + new_equations.toString() + "\n===================")
 						//append these basecases to base_cases
 						base_cases ++= new_equations

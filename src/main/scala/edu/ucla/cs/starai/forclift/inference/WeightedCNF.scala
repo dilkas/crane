@@ -27,6 +27,8 @@ import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
 import edu.ucla.cs.starai.forclift.nnf.visitors.LatexOutputVisitor
 import edu.ucla.cs.starai.forclift.nnf.Basecases
+import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
+
 
 case class WeightedCNF(
   cnf: CNF,
@@ -103,6 +105,10 @@ case class WeightedCNF(
 
     (recursions ++ Basecases.find_base_cases(recursions, clause_func_map, var_domain_map, this))
   }.flatten
+
+  def get_cpp_code () : Unit = {
+    NumericalEvaluation.generate_cpp_code(this, varDomainMap, SimplifyInWolfram.toArray)
+  }
 
   def verifyLogWmc {
 	VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)

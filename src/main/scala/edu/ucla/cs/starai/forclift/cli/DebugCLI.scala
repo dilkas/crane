@@ -29,6 +29,8 @@ import edu.ucla.cs.starai.forclift.languages.ModelConverters._
 import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.nnf.visitors.SimplifyUsingWolfram
+import edu.ucla.cs.starai.forclift.nnf.Basecases
+import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 
 /**
  * Handle all debugging logic for CLI
@@ -115,10 +117,10 @@ class DebugCLI(argumentParser: ArgotParser) {
     // New adddition
     if (simplifyFunctions) {
       println()
-      inputCLI.wcnfModel.SimplifyInWolfram.foreach{println(_)}
+      inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).foreach{println(_)}
       println()
+      NumericalEvaluation.generate_cpp_code(inputCLI.wcnfModel, inputCLI.wcnfModel.varDomainMap, inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).toArray)
+      println("Model Count : " + NumericalEvaluation.get_numerical_answer())
     }
   }
-
-  
 }
