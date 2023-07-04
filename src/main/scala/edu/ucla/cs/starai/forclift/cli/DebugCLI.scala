@@ -128,7 +128,10 @@ class DebugCLI(argumentParser: ArgotParser) {
         case 0 => None
         case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
       })
-      println("Model Count : " + NumericalEvaluation.get_numerical_answer())
+      val ans : BigInt = NumericalEvaluation.get_numerical_answer()
+      // Format the BigInt with commas
+      val formattedNumber = ans.toString().reverse.grouped(3).mkString(",").reverse
+      println("Model Count : " + formattedNumber)
     }
   }
 }

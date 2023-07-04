@@ -14,6 +14,7 @@ import scala.util.control.Breaks._
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import scala.collection.mutable.ListBuffer
 import edu.ucla.cs.starai.forclift.constraints.Constraints
+import scala.collection.mutable.Stack
 
 /**	
   * The boolean is true if the term is positive, else false.
@@ -21,8 +22,43 @@ import edu.ucla.cs.starai.forclift.constraints.Constraints
   * @param terms
   */
 class FuncArgument(var terms : List[(Boolean, String)]){ //represents a function argument of the form x1-x2 or x1-10-x2 or x2-0
+	def removeParentheses(exp: String): String = {
+		var ans : StringBuilder = new StringBuilder()
+		var num_minus : Int = 0
+		val sign_stack : Stack[Boolean] = Stack()
+		sign_stack.push(true)
+		for (index <- 0 to exp.length()-1){
+			if (exp(index) == ')'){
+				sign_stack.pop()
+			}
+			else if (exp(index) == '+' || exp(index) == '-'){
+				if (index != 0 && exp(index-1) == '(' && ans.length != 0)
+					ans.setLength(ans.length-1)
+				if (sign_stack.top){
+					ans += exp(index)
+				}
+				else{
+					if (exp(index) == '-') ans += '+'
+					else ans += '-'
+				}
+				if (exp(index+1) == '('){
+					if (exp(index) == '-')
+						sign_stack.push(!sign_stack.top)
+					else 
+						sign_stack.push(sign_stack.top)
+				}
+			}
+			else if (exp(index) == '(') {}
+			else {
+				ans += exp(index)
+			}
+		}
+		if (ans(0) == '+') 
+			return ans.substring(1)
+		return ans.toString()
+	}
 	def parseString(arg_str : String): Unit = {
-		var temp = arg_str.split('-')
+		var temp = removeParentheses(arg_str).split('-')
 		val term_buf : ListBuffer[(Boolean, String)] = ListBuffer() 
 		if (arg_str(0) == '-'){
 			val plus_loc = arg_str.indexOf('+')
@@ -95,6 +131,7 @@ object Basecases {
 	 * @param null_dom Domain that is to be made empty.
 	 * @return List of simplified clauses and those predicates that got removed during simplification, which would still contribute to the model count.
 	 */
+
 	def SetDomainToZero(clauses : List[Clause], null_dom : Domain) : (List[Clause], List[Predicate]) = {
 		var simplified_clauses : List[Clause] = List()
 		var removed_predicates : Set[Predicate] = Set()
@@ -123,7 +160,7 @@ object Basecases {
 		var dependencies : Map[FuncCall, scala.collection.immutable.Set[FuncCall]] = Map()
 		for(equation : String <- equations){
 			var lhs : FuncCall = new FuncCall(equation.split('=')(0).replaceAll("\\s", ""))
-			var dep : scala.collection.immutable.Set[FuncCall] = ("f[0-9]*\\[[x0-9,\\-\\+]*\\]".r).findAllIn(equation.split('=')(1).replaceAll("\\s", "")).map(str => new FuncCall(str)).toSet
+			var dep : scala.collection.immutable.Set[FuncCall] = ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r).findAllIn(equation.split('=')(1).replaceAll("\\s", "")).map(str => new FuncCall(str)).toSet
 			dependencies += (lhs -> dep)
 		}
 		return dependencies

@@ -14,6 +14,7 @@ import edu.ucla.cs.starai.forclift.Domain
 object NumericalEvaluation {
 	val CPP_COMPILER : String = "g++"
 	val COMPILE_FLAGS : Array[String] = Array("-w", "-std=c++17")
+	val LINK_FLAGS : Array[String] = Array("-lgmpxx", "-lgmp")
 	val OBJ_FILE_PATH : String = "bin/test.exe"
 	val CODE_FILE_PATH : String = "src/main/cpp/test.cpp"
 	val PARSER_BIN_PATH : String = "bin/shunting_yard.exe"
@@ -31,7 +32,7 @@ object NumericalEvaluation {
 		val parser_bin = new File(PARSER_BIN_PATH)
 		if (!parser_bin.exists() || !parser_bin.isFile){
 			println("Compiling the parser ....")
-			val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(PARSER_CODE_PATH, "-o", PARSER_BIN_PATH)
+			val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(PARSER_CODE_PATH, "-o", PARSER_BIN_PATH) ++ LINK_FLAGS.toSeq
 			val compile_proc : ProcessBuilder = Process(compile_cmd, Some(new java.io.File(".")))
 			val compile_out : ListBuffer[String] = ListBuffer()
 			val compile_err : ListBuffer[String] = ListBuffer()
@@ -49,7 +50,9 @@ object NumericalEvaluation {
 		if (exec_err.size != 0){
 			throw new Exception("Parser execution failed - \n" + exec_err.mkString("\n"))
 		}
+		println("\n********** CPP CODE **********\n")
         exec_out.foreach(println(_))
+		println("\n********** END OF CPP CODE **********\n")
 		val code_file = new File(CODE_FILE_PATH)
 		val code_file_writer = new FileWriter(code_file)
 		val buffered_code_file_writer = new BufferedWriter(code_file_writer)
@@ -65,7 +68,7 @@ object NumericalEvaluation {
             new_eqn = new_eqn.replaceAll(" ", "")
             new_eqn = new_eqn.replaceAll("\\{", "")
             new_eqn = new_eqn.replaceAll("\\}", "")
-            new_eqn = new_eqn.replaceAll("\\.", "")
+            new_eqn = new_eqn.replaceAll("\\.[0-9]*", "")
             new_eqn
         })
 		var target_str : String = target match{
@@ -96,8 +99,8 @@ object NumericalEvaluation {
         return generate_cpp_code(new_equations, target_str)
     }
 
-    def get_numerical_answer() : Int = {
-        val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(CODE_FILE_PATH, "-o", OBJ_FILE_PATH)
+    def get_numerical_answer() : BigInt = {
+        val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(CODE_FILE_PATH, "-o", OBJ_FILE_PATH) ++ LINK_FLAGS.toSeq
         val compile_proc : ProcessBuilder = Process(compile_cmd, Some(new java.io.File(".")))
         val compile_out : ListBuffer[String] = ListBuffer()
         val compile_err : ListBuffer[String] = ListBuffer()
@@ -113,6 +116,6 @@ object NumericalEvaluation {
 		if (exec_err.size != 0 || exec_out.size != 1){
 			throw new Exception("Numerical evaluation failed - \n" + exec_err.mkString("\n"))
 		}
-        return exec_out(0).toInt
+        return BigInt(exec_out(0))
     }
 }

@@ -530,9 +530,9 @@ class SimplifyUsingWolfram(
         )
     }
     (
-      "Piecewise[{{1, " + leaf.clause.constrs.constants.size + " <= " + variableNames(
+      "Piecewise[{{1, Inequality[" + leaf.clause.constrs.constants.size + ", LessEqual, " + variableNames(
         leaf.clause.domains.head
-      ) + " < " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "}}, 0]",
+      ) + ", Less, " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "]}}, 0]",
       Nil
     )
   }
@@ -652,23 +652,7 @@ object SimplifyUsingWolfram {
 		var func_rhs : String = PreProcessInput(exp)
 		var vars : Set[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toSet
 		var constraints : String = vars.mkString(">=0 && ") + ">=0 "
-    if (vars.size == 0)
-      func_rhs = "Simplify[ " + func_rhs + "]" 
-    else  
-      func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
-    var cmd_seq = Seq(WolframPath, "-code", func_rhs)
-		var proc : ProcessBuilder = Process(cmd_seq, Some(new java.io.File(".")))
-		proc ! ExternalBinaries.stringLogger(output_r, output_r)
-		if (output_r.size != 1){
-			throw new IllegalStateException(s"Wrong wolfram input or wrong wolfram output for rhs: " + cmd_seq(2))
-		}
-		var output_l = new ListBuffer[String]()
-		cmd_seq = Seq(WolframPath, "-code", func_lhs)
-		proc = Process(cmd_seq, Some(new java.io.File(".")))
-		proc ! ExternalBinaries.stringLogger(output_l, output_l)
-		if (output_l.size != 1){
-			throw new IllegalStateException(s"Wrong wolfram input or wrong wolfram output for lhs: $func_lhs")
-		}
-		return output_l(0) + " = " + output_r(0)
+    var ret_val : String = func_lhs + "=" + func_rhs.replaceAll(" ", "").replaceAll("\\*1([^0-9]?)", "$1").replaceAll("([^0-9]?)1\\*", "$1")//.replaceAll("-0([^0-9]?)", "").replaceAll("\\+0([^0-9]?)", "")
+    return ret_val
 	}
 }

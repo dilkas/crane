@@ -212,12 +212,9 @@ string FuncCall :: toCppString(vector<string> free_vars){
         }
         string iter_var = func_args.at(1).at(0).var();
         free_vars.push_back(iter_var);
-        lambda << "](){int sum{0}; for (unsigned " << iter_var << " = " << func_args.at(2).at(0).toString() << "; " << iter_var << " <= " << func_args.at(3).at(0).toString() << "; " << iter_var << "++){ sum += (" << expression_to_string(func_args.at(0), [free_vars](exp_unit& e){
+        lambda << "](){mpz_class sum{0}; for (unsigned " << iter_var << " = " << func_args.at(2).at(0).toString() << "; " << iter_var << " <= " << func_args.at(3).at(0).toString() << "; " << iter_var << "++){ sum += (" << expression_to_string(func_args.at(0), [free_vars](exp_unit& e){
             if (e.func().func_name == "Binomial" || e.func().func_name == "power" || e.func().func_name == "Sum") return e.func().toCppString(free_vars);
             return e.func().toString(true);
-            // exp_unit transformed_e{e};
-            // transformed_e.func().func_name = "";
-            // return get_function_name(e) + transformed_e.func().toString(true);
         }) << ");} return sum;})()";
         return lambda.str();
     }
@@ -229,9 +226,6 @@ string FuncCall :: toCppString(vector<string> free_vars){
             cpp_exp << expression_to_string(func_args.at(i), [free_vars](exp_unit& e){
                 if (e.func().func_name == "Binomial" || e.func().func_name == "power" || e.func().func_name == "Sum") return e.func().toCppString(free_vars);
                 return e.func().toString(true);
-                // exp_unit transformed_e{e};
-                // transformed_e.func().func_name = "";
-                // return get_function_name(e) + transformed_e.func().toString(true);
             });
         }
         cpp_exp << ')';
@@ -614,10 +608,10 @@ string generate_function_def(string eqn){
     size_t loc = eqn.find('=');
     exp_unit lhs = parseExpression(eqn.substr(0, loc)).at(0);
     Expression rhs = handle_pow(parseExpression(eqn.substr(loc+1, eqn.size()-loc-1)));
-    string signature = get_function_signature(lhs);
-    code << signature.substr(0, signature.size()-1) << "{\n";
+    string signature = get_function_signature(lhs, "mpz_class", "unsigned int", "");
+    code << signature << "{\n";
     //check if the element is present in the cache
-    code << "\tint stored_val = ";
+    code << "\tmpz_class& stored_val = ";
     stringstream stored_val_loc_stream;
     for(unsigned i{0}; i < lhs.func().func_args.size(); i++){
         stored_val_loc_stream << "get_elem(";
@@ -637,8 +631,6 @@ string generate_function_def(string eqn){
             max_sub.insert({arg.at(0).var(), 0});
         }
     }
-    // for(auto s : max_sub)
-    //     cout << s.first << endl;
     stack<Expression*> arg_stack;
     arg_stack.push(&rhs);
     while(!arg_stack.empty()){
@@ -682,21 +674,15 @@ string generate_function_def(string eqn){
                 code << " && ";
             code << max_sub_vec.at(i).first << " >= " << max_sub_vec.at(i).second;
         }
-        code << "){\n\t\tint ret_val = " << expression_to_string(rhs, [free_vars](exp_unit& e){
+        code << "){\n\t\tmpz_class ret_val = " << expression_to_string(rhs, [free_vars](exp_unit& e){
             if (e.func().func_name == "Binomial" || e.func().func_name == "power" || e.func().func_name == "Sum") return e.func().toCppString(free_vars);
             return e.func().toString(true);
-            // exp_unit transformed_e{e};
-            // transformed_e.func().func_name = "";
-            // return get_function_name(e) + transformed_e.func().toString(true);
         }) << ";\n\t\t" << stored_val_loc << " = ret_val;\n\t\treturn ret_val;\n\t}\n";   
     }
     else{
-        code << "\tint ret_val = " << expression_to_string(rhs, [free_vars](exp_unit& e){
+        code << "\tmpz_class ret_val = " << expression_to_string(rhs, [free_vars](exp_unit& e){
             if (e.func().func_name == "Binomial" || e.func().func_name == "power" || e.func().func_name == "Sum") return e.func().toCppString(free_vars);
             return e.func().toString(true);
-            // exp_unit transformed_e{e};
-            // transformed_e.func().func_name = "";
-            // return get_function_name(e) + transformed_e.func().toString(true);
         }) << ";\n\t" << stored_val_loc << " = ret_val;\n\treturn ret_val;\n";   
     }
     //handling the rest of the cases
@@ -722,7 +708,7 @@ string generate_function_def(string eqn){
 string generate_cpp_code(vector<string> equations){
     stringstream code;
     for(auto& eqn : equations){
-        code << get_function_signature(parseExpression(eqn.substr(0, eqn.find('='))).at(0)) << "\n";
+        code << get_function_signature(parseExpression(eqn.substr(0, eqn.find('='))).at(0), "mpz_class", "unsigned int") << "\n";
     }
     code << "\n";
     for(auto& eqn : equations){
@@ -743,12 +729,12 @@ set<pair<string, int>> get_functions(vector<string> equations){
 
 string generate_cpp_code_with_main(vector<string> equations, /*vector<int> args,*/ string target){
     stringstream code;
-    code << "#include <iostream>\n#include <string>\n#include <vector>\n#include <cmath>\n\n";
+    code << "#include <iostream>\n#include <string>\n#include <vector>\n#include <cmath>\n#include <gmpxx.h>\n\n";
     //helper code
-    code << "class cache_elem{\npublic : \n\tint n;\n\tcache_elem(int x) : n{x} {}\n\tcache_elem() : n{-1} {}\n};\n\n";
+    code << "class cache_elem{\npublic : \n\tmpz_class n;\n\tcache_elem(mpz_class x) : n{x} {}\n\tcache_elem() : n{-1} {}\n};\n\n";
     code << "template <class T> T& get_elem(std::vector<T>& a, size_t n){\n\tif (n >= a.size()){\n\t\ta.resize(n+1);\n\t}\n\treturn a.at(n);\n}\n\n";
-    code << "int Binomial(int n, int r){\n\treturn round(std::tgamma(n+1)/(std::tgamma(r+1)*std::tgamma(n-r+1)));\n}\n\n";
-    code << "int power(int x, int y){\n\treturn round(pow(x, y));\n}\n\n";
+    code << "mpz_class Binomial(unsigned int n, unsigned int r){\n\tmpz_t ans;\n\tmpz_init(ans);\n\tmpz_bin_uiui(ans, n, r);\n\treturn mpz_class{ans};}\n\n";
+    code << "mpz_class power(mpz_class x, unsigned int y){\n\tmpz_t ans;\n\tmpz_init(ans);\n\tmpz_pow_ui(ans, x.get_mpz_t(), y);\n\treturn mpz_class{ans};\n}\n\n";
     //make the caches
     set<pair<string, int>> functions = get_functions(equations);
     for(const auto& func : functions){
@@ -763,13 +749,6 @@ string generate_cpp_code_with_main(vector<string> equations, /*vector<int> args,
     }
     code << "\n";
     code << generate_cpp_code(equations) << endl;
-    // code << "int main(){\n\tstd::cout << f(";
-    // for(unsigned i{0}; i < args.size(); i++){
-    //     if (i != 0)
-    //         code << ", ";
-    //     code << args.at(i);
-    // }
-    // code << ") << std::endl;\n}";
     code << "int main(){\n\tstd::cout << " << target << " << std::endl;\n}";
     return code.str();
 }
@@ -790,13 +769,4 @@ int main(int argc, char* argv[]){
     string target;
     in_file >> target;
     std::cout << generate_cpp_code_with_main(equations, target) << endl;
-    //////////////////////////////////////////////////////////////
-    // vector<string> free_vars{"z"};
-    // Expression rhs = handle_pow(parseExpression("f[-1+x]"), true);
-    // cout << rhs.size() << endl;
-    // std::cout << expression_to_string(rhs, [free_vars](exp_unit& e){
-    //         if (e.func().func_name == "Binomial" || e.func().func_name == "power" || e.func().func_name == "Sum") return e.func().toCppString(free_vars);
-    //         return e.toString();
-    //     }) << std::endl;
-    ///////////////////////////////////////////////////////////////
 }
