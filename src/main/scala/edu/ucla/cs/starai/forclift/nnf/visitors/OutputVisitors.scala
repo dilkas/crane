@@ -511,8 +511,6 @@ class SimplifyUsingWolfram(
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
     if (leaf.clause.domains.size != 1){
-      println("==========CNF : ================")
-      println(leaf.cnf)
       throw new IllegalStateException(
         "Contradiction clauses with more than one domain are not supported (but support for them could easily be added if need-be)"
       )
@@ -608,13 +606,6 @@ class SimplifyUsingWolfram(
 
 object SimplifyUsingWolfram {
 
-
-  def print_in_red(s : String) : Unit = {
-		val redColor = "\u001b[31m"
-		val resetColor = "\u001b[0m"
-		println(redColor + s + resetColor)
-	}
-
   def apply(
       initialDomains: Set[Domain],
       directSuccessorsOfRef: Set[NNFNode],
@@ -629,11 +620,9 @@ object SimplifyUsingWolfram {
         (d, varName)
       }
     }: _*)
-    print_in_red("+++++apply of SimplifyUsingWolfram+++++++++++++++")
     if (directSuccessorsOfRef.contains(source)) {
       ((visitor.visit(source, (variableNames, predicateWeights))._2).map(SimplifyInWolfram(_)), visitor.clause_func_map, visitor.var_domain_map)
     } else {
-      print_in_red("else in apply of outputvisitor")
       val functionName = visitor.newFunctionName(source)
       visitor.clause_func_map += (functionName -> source.cnf.toList)
       val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
@@ -667,8 +656,7 @@ object SimplifyUsingWolfram {
       func_rhs = "Simplify[ " + func_rhs + "]" 
     else  
       func_rhs = "Simplify[ " + func_rhs + ", Assumptions -> " + constraints + "]"
-    println(func_rhs)
-		var cmd_seq = Seq(WolframPath, "-code", func_rhs)
+    var cmd_seq = Seq(WolframPath, "-code", func_rhs)
 		var proc : ProcessBuilder = Process(cmd_seq, Some(new java.io.File(".")))
 		proc ! ExternalBinaries.stringLogger(output_r, output_r)
 		if (output_r.size != 1){

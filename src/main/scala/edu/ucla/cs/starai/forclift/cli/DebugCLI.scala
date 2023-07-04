@@ -124,7 +124,6 @@ class DebugCLI(argumentParser: ArgotParser) {
       println()
       inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).foreach{println(_)}
       println()
-      println(domainSizes.value)
       NumericalEvaluation.generate_cpp_code(inputCLI.wcnfModel, inputCLI.wcnfModel.varDomainMap, inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).toArray, domainSizes.value.size match {
         case 0 => None
         case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
