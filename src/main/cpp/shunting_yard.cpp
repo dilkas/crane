@@ -521,7 +521,7 @@ int get_var_val(exp_unit f){
 }
 
 //evaluates an expression in the postfix notation
-int evaluateExpression(Expression exp, function<int(exp_unit)> get_var_val = get_var_val, function<int(exp_unit)> get_func_val = get_func_val){
+int evaluateExpression(Expression exp, function<int(exp_unit)> get_var_val, function<int(exp_unit)> get_func_val){
     stack<exp_unit> eval_stack;
     for(auto e : exp){
         switch (e.type){
@@ -567,7 +567,7 @@ int evaluateExpression(Expression exp, function<int(exp_unit)> get_var_val = get
             case exp_unit_type :: FuncCall : {
                 exp_unit f{e};
                 for(auto& arg : e.func().func_args){
-                    int v = evaluateExpression(arg);
+                    int v = evaluateExpression(arg, get_var_val, get_func_val);
                     arg = vector<exp_unit>{exp_unit{v}};
                 }
                 eval_stack.push({get_func_val(f)});
@@ -662,7 +662,7 @@ string generate_function_def(string eqn){
                     }
                     if (max_sub.find(var_name) == max_sub.end()) continue;
                     //updating max_sub
-                    max_sub.at(var_name) = max(max_sub.at(var_name), -evaluateExpression(shunting_yard(arg)));
+                    max_sub.at(var_name) = max(max_sub.at(var_name), -evaluateExpression(shunting_yard(arg), get_var_val, get_func_val));
                 }
             }
         }

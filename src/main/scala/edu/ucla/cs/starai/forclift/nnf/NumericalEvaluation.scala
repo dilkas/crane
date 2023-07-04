@@ -13,7 +13,7 @@ import edu.ucla.cs.starai.forclift.Domain
 
 object NumericalEvaluation {
 	val CPP_COMPILER : String = "g++"
-	val COMPILE_FLAGS : String = "-O3"
+	val COMPILE_FLAGS : Array[String] = Array("-w", "-std=c++17")
 	val OBJ_FILE_PATH : String = "bin/test.exe"
 	val CODE_FILE_PATH : String = "src/main/cpp/test.cpp"
 	val PARSER_BIN_PATH : String = "bin/shunting_yard.exe"
@@ -31,7 +31,7 @@ object NumericalEvaluation {
 		val parser_bin = new File(PARSER_BIN_PATH)
 		if (!parser_bin.exists() || !parser_bin.isFile){
 			println("Compiling the parser ....")
-			val compile_cmd : Seq[String] = Seq(CPP_COMPILER, COMPILE_FLAGS, PARSER_CODE_PATH, "-o", PARSER_BIN_PATH)
+			val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(PARSER_CODE_PATH, "-o", PARSER_BIN_PATH)
 			val compile_proc : ProcessBuilder = Process(compile_cmd, Some(new java.io.File(".")))
 			val compile_out : ListBuffer[String] = ListBuffer()
 			val compile_err : ListBuffer[String] = ListBuffer()
@@ -57,9 +57,8 @@ object NumericalEvaluation {
 		buffered_code_file_writer.flush()
 	}
 
-    def generate_cpp_code(wcnf : WeightedCNF, var_domain_map : Map[String, Domain], equations : Array[String]) : Unit = {
-        var target_str : String = "f0("
-        var new_equations : Array[String] = new Array[String](equations.length)
+    def generate_cpp_code(wcnf : WeightedCNF, var_domain_map : Map[String, Domain], equations : Array[String], target : Option[String] = None) : Unit = {
+		var new_equations : Array[String] = new Array[String](equations.length)
         equations.copyToArray(new_equations)
         new_equations = new_equations.map(eqn => {
             var new_eqn : String = eqn
@@ -69,29 +68,36 @@ object NumericalEvaluation {
             new_eqn = new_eqn.replaceAll("\\.", "")
             new_eqn
         })
-        for (eqn <- new_equations){
-            val index_of_equals : Int = eqn.indexOf('=')
-            val lhs : FuncCall = new FuncCall(eqn.substring(0, index_of_equals).replaceAll(" ", ""))
-            if (lhs.func_name == "f0"){
-                var is_base_call : Boolean = true
-                for (arg <- lhs.args){
-                    if (arg.terms.size != 1 || !arg.terms(0)._1 || !arg.terms(0)._2.matches("x[0-9]+"))
-                        is_base_call = false
-                }
-                if (is_base_call){
-                    for(arg <- lhs.args){
-                        val dom_size : Int = wcnf.domainSizes(var_domain_map(arg.terms(0)._2)).size
-                        target_str += dom_size.toString() + ","
-                    }
-                    target_str = target_str.substring(0, target_str.size - 1) + ")"
-                }
-            }
-        }
+		var target_str : String = target match{
+			case Some(x) => "f0(" + x + ")"
+			case None => {
+				var target_str = "f0("
+				for (eqn <- new_equations){
+					val index_of_equals : Int = eqn.indexOf('=')
+					val lhs : FuncCall = new FuncCall(eqn.substring(0, index_of_equals).replaceAll(" ", ""))
+					if (lhs.func_name == "f0"){
+						var is_base_call : Boolean = true
+						for (arg <- lhs.args){
+							if (arg.terms.size != 1 || !arg.terms(0)._1 || !arg.terms(0)._2.matches("x[0-9]+"))
+								is_base_call = false
+						}
+						if (is_base_call){
+							for(arg <- lhs.args){
+								val dom_size : Int = wcnf.domainSizes(var_domain_map(arg.terms(0)._2)).size
+								target_str += dom_size.toString() + ","
+							}
+							target_str = target_str.substring(0, target_str.size - 1) + ")"
+						}
+					}
+				}
+				target_str
+			}
+		}
         return generate_cpp_code(new_equations, target_str)
     }
 
     def get_numerical_answer() : Int = {
-        val compile_cmd : Seq[String] = Seq(CPP_COMPILER, COMPILE_FLAGS, CODE_FILE_PATH, "-o", OBJ_FILE_PATH)
+        val compile_cmd : Seq[String] = Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(CODE_FILE_PATH, "-o", OBJ_FILE_PATH)
         val compile_proc : ProcessBuilder = Process(compile_cmd, Some(new java.io.File(".")))
         val compile_out : ListBuffer[String] = ListBuffer()
         val compile_err : ListBuffer[String] = ListBuffer()
