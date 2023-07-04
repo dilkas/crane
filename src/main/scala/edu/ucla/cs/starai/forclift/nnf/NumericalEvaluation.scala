@@ -57,9 +57,8 @@ object NumericalEvaluation {
 		buffered_code_file_writer.flush()
 	}
 
-    def generate_cpp_code(wcnf : WeightedCNF, var_domain_map : Map[String, Domain], equations : Array[String]) : Unit = {
-        var target_str : String = "f0("
-        var new_equations : Array[String] = new Array[String](equations.length)
+    def generate_cpp_code(wcnf : WeightedCNF, var_domain_map : Map[String, Domain], equations : Array[String], target : Option[String] = None) : Unit = {
+		var new_equations : Array[String] = new Array[String](equations.length)
         equations.copyToArray(new_equations)
         new_equations = new_equations.map(eqn => {
             var new_eqn : String = eqn
@@ -69,24 +68,31 @@ object NumericalEvaluation {
             new_eqn = new_eqn.replaceAll("\\.", "")
             new_eqn
         })
-        for (eqn <- new_equations){
-            val index_of_equals : Int = eqn.indexOf('=')
-            val lhs : FuncCall = new FuncCall(eqn.substring(0, index_of_equals).replaceAll(" ", ""))
-            if (lhs.func_name == "f0"){
-                var is_base_call : Boolean = true
-                for (arg <- lhs.args){
-                    if (arg.terms.size != 1 || !arg.terms(0)._1 || !arg.terms(0)._2.matches("x[0-9]+"))
-                        is_base_call = false
-                }
-                if (is_base_call){
-                    for(arg <- lhs.args){
-                        val dom_size : Int = wcnf.domainSizes(var_domain_map(arg.terms(0)._2)).size
-                        target_str += dom_size.toString() + ","
-                    }
-                    target_str = target_str.substring(0, target_str.size - 1) + ")"
-                }
-            }
-        }
+		var target_str : String = target match{
+			case Some(x) => "f0(" + x + ")"
+			case None => {
+				var target_str = "f0("
+				for (eqn <- new_equations){
+					val index_of_equals : Int = eqn.indexOf('=')
+					val lhs : FuncCall = new FuncCall(eqn.substring(0, index_of_equals).replaceAll(" ", ""))
+					if (lhs.func_name == "f0"){
+						var is_base_call : Boolean = true
+						for (arg <- lhs.args){
+							if (arg.terms.size != 1 || !arg.terms(0)._1 || !arg.terms(0)._2.matches("x[0-9]+"))
+								is_base_call = false
+						}
+						if (is_base_call){
+							for(arg <- lhs.args){
+								val dom_size : Int = wcnf.domainSizes(var_domain_map(arg.terms(0)._2)).size
+								target_str += dom_size.toString() + ","
+							}
+							target_str = target_str.substring(0, target_str.size - 1) + ")"
+						}
+					}
+				}
+				target_str
+			}
+		}
         return generate_cpp_code(new_equations, target_str)
     }
 
