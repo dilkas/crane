@@ -32,105 +32,137 @@ import edu.ucla.cs.starai.forclift.nnf.visitors.SimplifyUsingWolfram
 import edu.ucla.cs.starai.forclift.nnf.Basecases
 import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 
-/**
- * Handle all debugging logic for CLI
- */
-
-
+/** Handle all debugging logic for CLI
+  */
 class DebugCLI(argumentParser: ArgotParser) {
-  
-  /* DEBUGGING FLAGS */
-    
-  val helpFlag = argumentParser.flag[Any](
-    List("h", "help"),
-    "This help.") {
-      (s, opt) => argumentParser.usage("")
-    }
 
-  //TODO change to using verbosity levels (int)
-  val verboseFlag = argumentParser.flag[Boolean](
-    List("v", "verbose"),
-    "Verbose output (and verbose pdf).")
+  /* DEBUGGING FLAGS */
+
+  val helpFlag = argumentParser.flag[Any](List("h", "help"), "This help.") {
+    (s, opt) => argumentParser.usage("")
+  }
+
+  // TODO change to using verbosity levels (int)
+  val verboseFlag = argumentParser
+    .flag[Boolean](List("v", "verbose"), "Verbose output (and verbose pdf).")
   def verbose = verboseFlag.value.getOrElse(false)
 
   val verifyWmcFlag = argumentParser.flag[Boolean](
     List("verify"),
-    "Verify the result of wfomc using the UCLA c2d compiler. The c2d compiler command can be set with environment variable C2DCMD (default: ./c2d_linux).")
+    "Verify the result of wfomc using the UCLA c2d compiler. The c2d compiler command can be set with environment variable C2DCMD (default: ./c2d_linux)."
+  )
   def verifyWmc = verifyWmcFlag.value.getOrElse(false)
-  
+
   val showNNFFlag = argumentParser.flag[Boolean](
     List("pdf"),
-    "Create a pdf visualizing the NNF circuit. Requires pdflatex and graphviz dot to be in your path and the dot2texi package installed.")
+    "Create a pdf visualizing the NNF circuit. Requires pdflatex and graphviz dot to be in your path and the dot2texi package installed."
+  )
   def showNNF = showNNFFlag.value.getOrElse(false)
-    
-  val showGroundingFlag = argumentParser.flag[Boolean](
-    List("ground"),
-    "Show a ground CNF for the model.")
+
+  val showGroundingFlag = argumentParser
+    .flag[Boolean](List("ground"), "Show a ground CNF for the model.")
   def showGrounding = showGroundingFlag.value.getOrElse(false)
 
   val outputFunctionsFlag = argumentParser.flag[Boolean](
     List("f", "functions"),
-    "Output the definitions of functions.")
+    "Output the definitions of functions."
+  )
   def outputFunctions = outputFunctionsFlag.value.getOrElse(false)
 
   // New Addition
   val simplifyFunctionFlag = argumentParser.flag[Boolean](
     List("s", "simplify"),
-    "Simplifies the function using the Wolfram Engine.")
-  def simplifyFunctions = simplifyFunctionFlag.value.getOrElse(false)  
+    "Simplifies the function using the Wolfram Engine."
+  )
 
-  private def domainSizesConverter(s: String, m : org.clapper.argot.MultiValueOption[List[Int]]): List[Int] = {
+  def simplifyFunctions = simplifyFunctionFlag.value.getOrElse(false)
+
+  private def domainSizesConverter(
+      s: String,
+      m: org.clapper.argot.MultiValueOption[List[Int]]
+  ): List[Int] = {
     s.split(",").map(_.toInt).toList
   }
-  val domainSizes = argumentParser.multiOption[List[Int]](List("sizes"), "List of domain sizes", "<size1,size2,...>")(domainSizesConverter)
+
+  val domainSizes = argumentParser.multiOption[List[Int]](
+    List("sizes"),
+    "List of domain sizes",
+    "<size1,size2,...>"
+  )(domainSizesConverter)
 
   def runDebugging(inputCLI: InputCLI) {
-    
+
     if (showGrounding) {
       println("Ground model:")
       println(inputCLI.model.ground)
       println
     }
-    
+
     if (verifyWmc) {
       inputCLI.wcnfModel.verifyLogWmc
-      if (inputCLI.hasQuery){
+      if (inputCLI.hasQuery) {
         val wcnfQuery = inputCLI.wcnfModel.addConstraint(inputCLI.query)
         wcnfQuery.verifyLogWmc
       }
     }
-    
-    if(showNNF){
+
+    if (showNNF) {
       // set some default parameter that have no flags
       val compact = true;
       val maxDepth = Integer.MAX_VALUE
-      inputCLI.wcnfModel.showNnfPdf(compact, maxDepth, "theory.nnf", verbose = verbose)
-      inputCLI.wcnfModel.showSmoothNnfPdf(compact, maxDepth, "theory.smooth.nnf", verbose = verbose)
-      if (inputCLI.hasQuery){
+      inputCLI.wcnfModel.showNnfPdf(
+        compact,
+        maxDepth,
+        "theory.nnf",
+        verbose = verbose
+      )
+      inputCLI.wcnfModel.showSmoothNnfPdf(
+        compact,
+        maxDepth,
+        "theory.smooth.nnf",
+        verbose = verbose
+      )
+      if (inputCLI.hasQuery) {
         val wcnfQuery = inputCLI.wcnfModel.addConstraint(inputCLI.query)
         wcnfQuery.showNnfPdf(compact, maxDepth, "query.nnf", verbose = verbose)
-        wcnfQuery.showSmoothNnfPdf(compact, maxDepth, "query.smooth.nnf", verbose = verbose)
+        wcnfQuery.showSmoothNnfPdf(
+          compact,
+          maxDepth,
+          "query.smooth.nnf",
+          verbose = verbose
+        )
       }
     }
 
     if (outputFunctions) {
       println()
-      inputCLI.wcnfModel.toLatex.foreach{println(_)}
+      inputCLI.wcnfModel.toLatex.foreach { println(_) }
       println()
     }
 
     // New adddition
     if (simplifyFunctions) {
       println()
-      inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).foreach{println(_)}
+      inputCLI.wcnfModel.SimplifyInWolfram
+        .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+        .foreach { println(_) }
       println()
-      NumericalEvaluation.generate_cpp_code(inputCLI.wcnfModel, inputCLI.wcnfModel.varDomainMap, inputCLI.wcnfModel.SimplifyInWolfram.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).toArray, domainSizes.value.size match {
-        case 0 => None
-        case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
-      })
-      val ans : BigInt = NumericalEvaluation.get_numerical_answer()
+      NumericalEvaluation.generate_cpp_code(
+        inputCLI.wcnfModel,
+        inputCLI.wcnfModel.varDomainMap,
+        inputCLI.wcnfModel.SimplifyInWolfram
+          .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+          .toArray,
+        domainSizes.value.size match {
+          case 0 => None
+          case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
+        }
+      )
+      val ans: BigInt = NumericalEvaluation.get_numerical_answer()
+
       // Format the BigInt with commas
-      val formattedNumber = ans.toString().reverse.grouped(3).mkString(",").reverse
+      val formattedNumber =
+        ans.toString().reverse.grouped(3).mkString(",").reverse
       println("Model Count : " + formattedNumber)
     }
   }

@@ -64,7 +64,10 @@ class LatexOutputVisitor(
     val initialDomains: Set[Domain],
     val directSuccessorsOfRef: Set[NNFNode],
     val predicateWeights: PredicateWeights
-) extends NnfVisitor[(Map[Domain, String], PredicateWeights), (String, List[String])] {
+) extends NnfVisitor[
+      (Map[Domain, String], PredicateWeights),
+      (String, List[String])
+    ] {
 
   private[this] val functionNames = collection.mutable.Map[NNFNode, String]()
   private[this] var nextFunctionIndex = 0
@@ -85,7 +88,8 @@ class LatexOutputVisitor(
           (domain, name)
         }
       }
-      val (expression, functions) = super.visit(node, (newVariableNames, predicateWeights))
+      val (expression, functions) =
+        super.visit(node, (newVariableNames, predicateWeights))
       val functionCall = functionName + "(" + node.orderedDomains
         .map { variableNames(_) }
         .mkString(", ") + ")"
@@ -127,7 +131,10 @@ class LatexOutputVisitor(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    val newVariableNames = variableNames + (cr.subdomain -> ("(" + variableNames(cr.domain) + " - 1)"), cr.subdomain.complement -> "1")
+    val newVariableNames =
+      variableNames + (cr.subdomain -> ("(" + variableNames(
+        cr.domain
+      ) + " - 1)"), cr.subdomain.complement -> "1")
     visit(cr.child.get, (newVariableNames, predicateWeights))
   }
 
@@ -148,8 +155,10 @@ class LatexOutputVisitor(
     val (variableNames, predicateWeights) = params
     val n = variableNames(exists.domain)
     val m = newVariableName()
-    val newVariableNames = variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
-    val (expression, functions) = visit(exists.child.get, (newVariableNames, predicateWeights))
+    val newVariableNames =
+      variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
+    val (expression, functions) =
+      visit(exists.child.get, (newVariableNames, predicateWeights))
     (s"\\sum_{$m = 0}^{$n} \\binom{$n}{$m} \\times $expression", functions)
   }
 
@@ -210,9 +219,9 @@ class LatexOutputVisitor(
     *
     * We assume that:
     *   1. There is only one domain. (Otherwise we would need to produce the
-    *      disjunction of the domain size restrictions for each domain.)
-    *   2. All variables are constrained to be unequal.
-    *   3. All variables are constrained to be unequal to all constants (if any).
+    *      disjunction of the domain size restrictions for each domain.) 2. All
+    *      variables are constrained to be unequal. 3. All variables are
+    *      constrained to be unequal to all constants (if any).
     */
   protected def visitContradictionLeaf(
       leaf: ContradictionLeaf,
@@ -261,19 +270,26 @@ class LatexOutputVisitor(
       leaf: SmoothingNode,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    println("Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail.")
+    println(
+      "Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail."
+    )
     if (leaf.clause.constrs.ineqConstrs.isEmpty) {
       val (variableNames, predicateWeights) = params
-      val weight = predicateWeights(leaf.clause.predicate).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
+      val weight = predicateWeights(
+        leaf.clause.predicate
+      ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
       (
-        s"($weight)^{" + leaf.clause.literalVariables.map {
-          case variable => variableNames(leaf.clause.domainsFor(Set(variable)).head)
-        }.mkString(" \\times ") + "}",
+        s"($weight)^{" + leaf.clause.literalVariables
+          .map { case variable =>
+            variableNames(leaf.clause.domainsFor(Set(variable)).head)
+          }
+          .mkString(" \\times ") + "}",
         Nil
       )
-    /*} else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {*/
     } else {
-    throw new IllegalStateException("This type of smoothing node is not supported")
+      throw new IllegalStateException(
+        "This type of smoothing node is not supported"
+      )
     }
   }
 
@@ -287,21 +303,29 @@ class LatexOutputVisitor(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    val weight = if (leaf.positive) predicateWeights(leaf.clause.predicate).posWDouble else predicateWeights(leaf.clause.predicate).negWDouble
+    val weight =
+      if (leaf.positive) predicateWeights(leaf.clause.predicate).posWDouble
+      else predicateWeights(leaf.clause.predicate).negWDouble
     if (approxEqual(weight, 1)) {
       ("1", Nil)
     } else {
       if (!leaf.clause.constrs.ineqConstrs.isEmpty)
-        throw new IllegalStateException("Unit leaves with non-empty constraints and a predicate weight not equal to one are currently not supported")
+        throw new IllegalStateException(
+          "Unit leaves with non-empty constraints and a predicate weight not equal to one are currently not supported"
+        )
       (
-        s"($weight)^{" + leaf.clause.literalVariables.map {
-          case variable => {
-            val domains = leaf.clause.domainsFor(Set(variable))
-            if (domains.size != 1)
-              throw new IllegalStateException("If this exception is ever triggered, something with the definition of Clause or Constraints must be bugged")
-            variableNames(domains.head)
+        s"($weight)^{" + leaf.clause.literalVariables
+          .map {
+            case variable => {
+              val domains = leaf.clause.domainsFor(Set(variable))
+              if (domains.size != 1)
+                throw new IllegalStateException(
+                  "If this exception is ever triggered, something with the definition of Clause or Constraints must be bugged"
+                )
+              variableNames(domains.head)
+            }
           }
-        }.mkString(" \\times ") + "}",
+          .mkString(" \\times ") + "}",
         Nil
       )
     }
@@ -320,7 +344,11 @@ object LatexOutputVisitor {
       predicateWeights: PredicateWeights,
       source: NNFNode
   ): List[String] = {
-    val visitor = new LatexOutputVisitor(initialDomains, directSuccessorsOfRef, predicateWeights)
+    val visitor = new LatexOutputVisitor(
+      initialDomains,
+      directSuccessorsOfRef,
+      predicateWeights
+    )
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
       case (d, i) => (d, visitor.newVariableName())
     }: _*)
@@ -328,7 +356,8 @@ object LatexOutputVisitor {
       visitor.visit(source, (variableNames, predicateWeights))._2
     } else {
       val functionName = visitor.newFunctionName(source)
-      val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
+      val (expression, functions) =
+        visitor.visit(source, (variableNames, predicateWeights))
       (functionName + "(" + initialDomains
         .map { variableNames(_) }
         .mkString(", ") + ") = " + expression) :: functions
@@ -337,25 +366,35 @@ object LatexOutputVisitor {
 
 }
 
-
-
-/** ==========================================================================
+/** ===========================================================================
   * New Code : Simplification using Wolfram Engine
-==============================================================================  */
- 
+  * ===========================================================================
+  */
+
 class SimplifyUsingWolfram(
     val initialDomains: Set[Domain],
     val directSuccessorsOfRef: Set[NNFNode],
     val predicateWeights: PredicateWeights
-) extends NnfVisitor[(Map[Domain, String], PredicateWeights), (String, List[String])] {
+) extends NnfVisitor[
+      (Map[Domain, String], PredicateWeights),
+      (String, List[String])
+    ] {
 
   private[this] val functionNames = collection.mutable.Map[NNFNode, String]()
   private[this] var nextFunctionIndex = 0
   private[this] var nextVariableIndex = 0
 
-  var clause_func_map : collection.mutable.Map[String, List[Clause]] = scala.collection.mutable.Map() //Maps the function names to the formula of which the model count is represented by the function.
+  // Maps the function names to the formula of which the model count is
+  // represented by the function.
+  var clause_func_map: collection.mutable.Map[String, List[Clause]] =
+    scala.collection.mutable.Map()
 
-  var var_domain_map : collection.mutable.Map[String, Domain] = scala.collection.mutable.Map() //Maps the variable names to the domain of which the size the variable represents. Note that this stores references to the existing domain objects, and not copies of those objects.
+  // Maps the variable names to the domain of which the size the variable
+  // represents. Note that this stores references to the existing domain
+  // objects, and not copies of those objects.
+  var var_domain_map: collection.mutable.Map[String, Domain] =
+    scala.collection.mutable
+      .Map()
 
   override def visit(
       node: NNFNode,
@@ -375,7 +414,8 @@ class SimplifyUsingWolfram(
           (domain, name)
         }
       }
-      val (expression, functions) = super.visit(node, (newVariableNames, predicateWeights))
+      val (expression, functions) =
+        super.visit(node, (newVariableNames, predicateWeights))
       val functionCall = functionName + "[" + node.orderedDomains
         .map { variableNames(_) }
         .mkString(", ") + "]"
@@ -417,7 +457,10 @@ class SimplifyUsingWolfram(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    val newVariableNames = variableNames + (cr.subdomain -> ("(" + variableNames(cr.domain) + " - 1)"), cr.subdomain.complement -> "1")
+    val newVariableNames =
+      variableNames + (cr.subdomain -> ("(" + variableNames(
+        cr.domain
+      ) + " - 1)"), cr.subdomain.complement -> "1")
     visit(cr.child.get, (newVariableNames, predicateWeights))
   }
 
@@ -439,8 +482,10 @@ class SimplifyUsingWolfram(
     val n = variableNames(exists.domain)
     val m = newVariableName()
     var_domain_map += (m -> exists.subdomain)
-    val newVariableNames = variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
-    val (expression, functions) = visit(exists.child.get, (newVariableNames, predicateWeights))
+    val newVariableNames =
+      variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
+    val (expression, functions) =
+      visit(exists.child.get, (newVariableNames, predicateWeights))
     (s"Sum[Binomial[$n, $m] * $expression, {$m, 0, $n}]", functions)
   }
 
@@ -501,16 +546,16 @@ class SimplifyUsingWolfram(
     *
     * We assume that:
     *   1. There is only one domain. (Otherwise we would need to produce the
-    *      disjunction of the domain size restrictions for each domain.)
-    *   2. All variables are constrained to be unequal.
-    *   3. All variables are constrained to be unequal to all constants (if any).
+    *      disjunction of the domain size restrictions for each domain.) 2. All
+    *      variables are constrained to be unequal. 3. All variables are
+    *      constrained to be unequal to all constants (if any).
     */
   protected def visitContradictionLeaf(
       leaf: ContradictionLeaf,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    if (leaf.clause.domains.size != 1){
+    if (leaf.clause.domains.size != 1) {
       throw new IllegalStateException(
         "Contradiction clauses with more than one domain are not supported (but support for them could easily be added if need-be)"
       )
@@ -553,19 +598,27 @@ class SimplifyUsingWolfram(
       leaf: SmoothingNode,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    println("Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail.")
+    println(
+      "Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail."
+    )
     if (leaf.clause.constrs.ineqConstrs.isEmpty) {
       val (variableNames, predicateWeights) = params
-      val weight = predicateWeights(leaf.clause.predicate).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
+      val weight = predicateWeights(
+        leaf.clause.predicate
+      ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
       (
-        s"($weight)^(" + leaf.clause.literalVariables.map {
-          case variable => variableNames(leaf.clause.domainsFor(Set(variable)).head)
-        }.mkString(" * ") + ")",
+        s"($weight)^(" + leaf.clause.literalVariables
+          .map { case variable =>
+            variableNames(leaf.clause.domainsFor(Set(variable)).head)
+          }
+          .mkString(" * ") + ")",
         Nil
       )
-    /*} else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {*/
+      /*} else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {*/
     } else {
-    throw new IllegalStateException("This type of smoothing node is not supported")
+      throw new IllegalStateException(
+        "This type of smoothing node is not supported"
+      )
     }
   }
 
@@ -579,21 +632,29 @@ class SimplifyUsingWolfram(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    val weight = if (leaf.positive) predicateWeights(leaf.clause.predicate).posWDouble else predicateWeights(leaf.clause.predicate).negWDouble
+    val weight =
+      if (leaf.positive) predicateWeights(leaf.clause.predicate).posWDouble
+      else predicateWeights(leaf.clause.predicate).negWDouble
     if (approxEqual(weight, 1)) {
       ("1", Nil)
     } else {
       if (!leaf.clause.constrs.ineqConstrs.isEmpty)
-        throw new IllegalStateException("Unit leaves with non-empty constraints and a predicate weight not equal to one are currently not supported")
+        throw new IllegalStateException(
+          "Unit leaves with non-empty constraints and a predicate weight not equal to one are currently not supported"
+        )
       (
-        s"($weight)^(" + leaf.clause.literalVariables.map {
-          case variable => {
-            val domains = leaf.clause.domainsFor(Set(variable))
-            if (domains.size != 1)
-              throw new IllegalStateException("If this exception is ever triggered, something with the definition of Clause or Constraints must be bugged")
-            variableNames(domains.head)
+        s"($weight)^(" + leaf.clause.literalVariables
+          .map {
+            case variable => {
+              val domains = leaf.clause.domainsFor(Set(variable))
+              if (domains.size != 1)
+                throw new IllegalStateException(
+                  "If this exception is ever triggered, something with the definition of Clause or Constraints must be bugged"
+                )
+              variableNames(domains.head)
+            }
           }
-        }.mkString(" * ") + ")",
+          .mkString(" * ") + ")",
         Nil
       )
     }
@@ -611,48 +672,71 @@ object SimplifyUsingWolfram {
       directSuccessorsOfRef: Set[NNFNode],
       predicateWeights: PredicateWeights,
       source: NNFNode
-  ): (List[String], scala.collection.mutable.Map[String, List[Clause]], scala.collection.mutable.Map[String, Domain]) = {
-    val visitor = new SimplifyUsingWolfram(initialDomains, directSuccessorsOfRef, predicateWeights)
+  ): (
+      List[String],
+      scala.collection.mutable.Map[String, List[Clause]],
+      scala.collection.mutable.Map[String, Domain]
+  ) = {
+    val visitor = new SimplifyUsingWolfram(
+      initialDomains,
+      directSuccessorsOfRef,
+      predicateWeights
+    )
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
       case (d, i) => {
-        val varName : String = visitor.newVariableName()
+        val varName: String = visitor.newVariableName()
         visitor.var_domain_map += (varName -> d)
         (d, varName)
       }
     }: _*)
     if (directSuccessorsOfRef.contains(source)) {
-      ((visitor.visit(source, (variableNames, predicateWeights))._2).map(SimplifyInWolfram(_)), visitor.clause_func_map, visitor.var_domain_map)
+      (
+        (visitor
+          .visit(source, (variableNames, predicateWeights))
+          ._2)
+          .map(SimplifyInWolfram(_)),
+        visitor.clause_func_map,
+        visitor.var_domain_map
+      )
     } else {
       val functionName = visitor.newFunctionName(source)
       visitor.clause_func_map += (functionName -> source.cnf.toList)
-      val (expression, functions) = visitor.visit(source, (variableNames, predicateWeights))
-      val equations : List[String] = (functionName + "[" + initialDomains
+      val (expression, functions) =
+        visitor.visit(source, (variableNames, predicateWeights))
+      val equations: List[String] = (functionName + "[" + initialDomains
         .map { variableNames(_) }
         .mkString(", ") + "] = " + expression) :: functions
-      val simplified_equations : List[String] = equations.map(SimplifyInWolfram(_))
+      val simplified_equations: List[String] =
+        equations.map(SimplifyInWolfram(_))
       (simplified_equations, visitor.clause_func_map, visitor.var_domain_map)
     }
   }
 
   var WolframPath = "wolframscript"
-	var func_lhs : String = ""
+  var func_lhs: String = ""
 
-	private def PreProcessInput(exp : String) : String = {
-		var new_str : String = exp
-		new_str = new_str.replaceAll("\\(\\)", "\\(1\\)")
-		var indexOfEquals : Int = new_str.indexOf('=')
-		func_lhs = new_str.substring(0, indexOfEquals)
-		new_str = new_str.substring(indexOfEquals+2)
-		return new_str
-	}
+  private def PreProcessInput(exp: String): String = {
+    var new_str: String = exp
+    new_str = new_str.replaceAll("\\(\\)", "\\(1\\)")
+    var indexOfEquals: Int = new_str.indexOf('=')
+    func_lhs = new_str.substring(0, indexOfEquals)
+    new_str = new_str.substring(indexOfEquals + 2)
+    return new_str
+  }
 
-	def SimplifyInWolfram(exp : String) : String = {
-		func_lhs = ""
-		var output_r = new ListBuffer[String]()
-		var func_rhs : String = PreProcessInput(exp)
-		var vars : Set[String] = ("""x[0-9]*"""r).findAllIn(func_rhs).toSet
-		var constraints : String = vars.mkString(">=0 && ") + ">=0 "
-    var ret_val : String = func_lhs + "=" + func_rhs.replaceAll(" ", "").replaceAll("\\*1([^0-9]?)", "$1").replaceAll("([^0-9]?)1\\*", "$1")//.replaceAll("-0([^0-9]?)", "").replaceAll("\\+0([^0-9]?)", "")
+  def SimplifyInWolfram(exp: String): String = {
+    func_lhs = ""
+    var output_r = new ListBuffer[String]()
+    var func_rhs: String = PreProcessInput(exp)
+    var vars: Set[String] = ("""x[0-9]*""" r).findAllIn(func_rhs).toSet
+    var constraints: String = vars.mkString(">=0 && ") + ">=0 "
+    var ret_val: String = func_lhs + "=" + func_rhs
+      .replaceAll(" ", "")
+      .replaceAll("\\*1([^0-9]?)", "$1")
+      .replaceAll(
+        "([^0-9]?)1\\*",
+        "$1"
+      )
     return ret_val
-	}
+  }
 }
