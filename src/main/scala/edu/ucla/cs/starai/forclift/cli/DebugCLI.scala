@@ -17,11 +17,16 @@
 
 package edu.ucla.cs.starai.forclift.cli
 
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
+import ch.qos.logback.core.joran.spi.JoranException
+import ch.qos.logback.core.util.StatusPrinter
 import org.clapper.argot.ArgotConverters._
 import org.clapper.argot.ArgotParser
 import org.clapper.argot.FlagOption
 import org.clapper.argot.SingleValueOption
 import org.clapper.argot.SingleValueParameter
+import org.slf4j.LoggerFactory
 import edu.ucla.cs.starai.forclift.propositional.C2DError
 import edu.ucla.cs.starai.forclift.languages.StatRelModel
 import edu.ucla.cs.starai.forclift.PositiveUnitClause
@@ -35,6 +40,9 @@ import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 /** Handle all debugging logic for CLI
   */
 class DebugCLI(argumentParser: ArgotParser) {
+
+  val VerboseConfig = "src/main/resources/verbose.xml"
+  val NonVerboseConfig = "src/main/resources/nonverbose.xml"
 
   /* DEBUGGING FLAGS */
 
@@ -83,6 +91,17 @@ class DebugCLI(argumentParser: ArgotParser) {
   )(domainSizesConverter)
 
   def runDebugging(inputCLI: InputCLI) {
+
+    val context = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
+    try {
+      val configurator = new JoranConfigurator()
+      configurator.setContext(context)
+      context.reset()
+      configurator.doConfigure(if (verbose) VerboseConfig else NonVerboseConfig)
+    } catch {
+      case _: JoranException =>
+    }
+    StatusPrinter.printInCaseOfErrorsOrWarnings(context)
 
     if (showGrounding) {
       println("Ground model:")
