@@ -87,10 +87,10 @@ abstract class MyCompiler(
           domain,
           msg
         )
-        log("\n" + msg + " Before:")
-        log(cnf)
-        log("After:")
-        log(mixedCNF + "\n")
+        logger.debug("\n" + msg + " Before:")
+        logger.debug(cnf.toString)
+        logger.debug("After:")
+        logger.debug(mixedCNF + "\n")
         (Some(node), List(mixedCNF))
       }
     }.toList
@@ -140,10 +140,10 @@ abstract class MyCompiler(
                   newDomain
                 )
 
-                log("\nConstraint removal. Before:")
-                log(cnf.toString)
-                log("Constraint removal. After:")
-                log(newCnf + "\n")
+                logger.debug("\nConstraint removal. Before:")
+                logger.debug(cnf.toString)
+                logger.debug("Constraint removal. After:")
+                logger.debug(newCnf + "\n")
 
                 return List((Some(node), List(newCnf)))
               }

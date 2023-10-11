@@ -144,14 +144,6 @@ case class WeightedCNF(
     ))
   }.flatten
 
-  def get_cpp_code(): Unit = {
-    NumericalEvaluation.generate_cpp_code(
-      this,
-      varDomainMap,
-      SimplifyInWolfram.toArray
-    )
-  }
-
   def verifyLogWmc {
     VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)
     val correct = ((logSmoothPropWmc - logSmoothWmc).abs.logToDouble < 0.0000001

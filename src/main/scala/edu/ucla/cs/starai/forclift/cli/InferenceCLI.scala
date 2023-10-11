@@ -90,12 +90,9 @@ class InferenceCLI(
     // make sure the model is parsed before inference timing starts
     inputCLI.wcnfModel
     inputCLI.queryOpt
-    println("Starting to run inference")
-    Timer{
-      if(allMarginals) runAllMarginalsInference()
-      if(z) runPartitionFunctionInference()
-      if(hasQuery) runQueryInference()
-    }("Inference took "+_+" ms")
+    if(allMarginals) runAllMarginalsInference()
+    if(z) runPartitionFunctionInference()
+    if(hasQuery) runQueryInference()
   }
   
   def runAllMarginalsInference(){

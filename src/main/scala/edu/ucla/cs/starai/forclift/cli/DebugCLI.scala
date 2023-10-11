@@ -69,14 +69,6 @@ class DebugCLI(argumentParser: ArgotParser) {
   )
   def outputFunctions = outputFunctionsFlag.value.getOrElse(false)
 
-  // New Addition
-  val simplifyFunctionFlag = argumentParser.flag[Boolean](
-    List("s", "simplify"),
-    "Simplifies the function using the Wolfram Engine."
-  )
-
-  def simplifyFunctions = simplifyFunctionFlag.value.getOrElse(false)
-
   private def domainSizesConverter(
       s: String,
       m: org.clapper.argot.MultiValueOption[List[Int]]
@@ -135,18 +127,10 @@ class DebugCLI(argumentParser: ArgotParser) {
     }
 
     if (outputFunctions) {
-      println()
-      inputCLI.wcnfModel.toLatex.foreach { println(_) }
-      println()
-    }
-
-    // New adddition
-    if (simplifyFunctions) {
-      println()
       inputCLI.wcnfModel.SimplifyInWolfram
         .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
         .foreach { println(_) }
-      println()
+
       NumericalEvaluation.generate_cpp_code(
         inputCLI.wcnfModel,
         inputCLI.wcnfModel.varDomainMap,

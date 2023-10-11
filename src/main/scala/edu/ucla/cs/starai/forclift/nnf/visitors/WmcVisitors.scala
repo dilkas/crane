@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.language.implicitConversions
 import scala.util.Try
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift.constraints.Constraints
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
@@ -56,11 +58,7 @@ object NnfVisitorCache {
 
 }
 
-trait WmcVisitor {
-
-  /** Logs how numbers propagate through circuit nodes. */
-  @inline protected final def log(s: => Any): Unit =
-    if (WmcVisitor.Verbose) println(s)
+trait WmcVisitor extends LazyLogging {
 
   def wmc(
       nnfs: List[NNFNode],
@@ -70,9 +68,6 @@ trait WmcVisitor {
 }
 
 object WmcVisitor {
-
-  /** A hacky way to turn a bunch of println statements on and off. */
-  protected val Verbose = false
 
   /** This latch is reduced to zero as soon as one of the threads finishes
     * computing the weighted model count.
@@ -259,7 +254,7 @@ protected class LogDoubleWmc(
     else {
       val rlwmcc = visit(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -271,7 +266,7 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val domainSize = cr.domain.size(domainSizes, Set())
     if (domainSize <= 0) {
-      log("0 (constraint removal, base case)")
+      logger.debug("0 (constraint removal, base case)")
       zero
     } else {
       val newDomainSizes = domainSizes + (cr.subdomain, domainSize - 1)
@@ -282,7 +277,7 @@ protected class LogDoubleWmc(
           predicateWeights
         )
       )
-      log(s"$child (constraint removal)")
+      logger.debug(s"$child (constraint removal)")
       child
     }
   }
@@ -310,7 +305,7 @@ protected class LogDoubleWmc(
       val childchildWmc = visit(dr.mixedChild.get.child.get, params)
       val power = (maxSize * (maxSize - 1)) / 2
       val answer = groundChildWmc.pow(maxSize) * childchildWmc.pow(power)
-      log(
+      logger.debug(
         s"$groundChildWmc ^ $maxSize * $childchildWmc ^ $power = $answer (domain recursion)"
       )
       answer
@@ -324,7 +319,7 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = exists.domain.size(domainSizes, exists.excludedConstants)
     var logWeight = zero
-    log("exists/counting:")
+    logger.debug("exists/counting:")
     for (nbTrue <- 0 to maxSize) {
       val newDomainSizes = (domainSizes
         + (exists.subdomain, nbTrue)
@@ -337,9 +332,9 @@ protected class LogDoubleWmc(
       val childWeight = visit(exists.child.get, newParams)
       val binomialCoeff = Binomial.coeff(maxSize, nbTrue)
       logWeight += binomialCoeff * childWeight
-      log(s" + $maxSize C $nbTrue * $childWeight")
+      logger.debug(s" + $maxSize C $nbTrue * $childWeight")
     }
-    log(s"= $logWeight\n")
+    logger.debug(s"= $logWeight\n")
     logWeight
   }
 
@@ -358,7 +353,7 @@ protected class LogDoubleWmc(
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -383,11 +378,11 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = idr.domain.size(domainSizes, idr.ineqs)
     if (maxSize < 1) {
-      log("1 (improved domain recursion, base case)")
+      logger.debug("1 (improved domain recursion, base case)")
       one
     } else {
       val childchildWmc = visit(idr.mixedChild.get, params)
-      log(s"$childchildWmc (improved domain recursion)")
+      logger.debug(s"$childchildWmc (improved domain recursion)")
       childchildWmc
     }
   }
@@ -400,7 +395,7 @@ protected class LogDoubleWmc(
     val plus2lwmc = visit(ie.plus2.get, params)
     val minlwmc = visit(ie.min.get, params)
     val answer = plus1lwmc + plus2lwmc - minlwmc
-    log(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
+    logger.debug(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
     answer
   }
 
@@ -411,7 +406,7 @@ protected class LogDoubleWmc(
     val llwmcc = visit(or.l.get, params)
     val rlwmcc = visit(or.r.get, params)
     val answer = llwmcc + rlwmcc
-    log(s"$llwmcc + $rlwmcc = $answer (or)")
+    logger.debug(s"$llwmcc + $rlwmcc = $answer (or)")
     answer
   }
 
@@ -423,7 +418,7 @@ protected class LogDoubleWmc(
     val newDomainSizes = domainSizes.shrink(ref.domainMap)
     val answer =
       visit(ref.nnfNode.get, (newDomainSizes, predicateWeights))
-    log(s"$answer (ref)")
+    logger.debug(s"$answer (ref)")
     answer
   }
 
@@ -436,7 +431,7 @@ protected class LogDoubleWmc(
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
     val weight = weights.negWPlusPosWLogDouble
     val answer = weight.pow(nbGroundings)
-    log(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
+    logger.debug(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
     answer
   }
 
@@ -457,12 +452,12 @@ protected class LogDoubleWmc(
     } else if (leaf.positive) {
       val weight = weights.posWLogDouble
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (positive leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (positive leaf)")
       answer
     } else {
       val weight = weights.negWLogDouble
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (negative leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (negative leaf)")
       answer
     }
   }
@@ -506,7 +501,7 @@ protected class SignLogDoubleWmc(
     else {
       val rlwmcc = visit(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -518,7 +513,7 @@ protected class SignLogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val domainSize = cr.domain.size(domainSizes, Set())
     if (domainSize <= 0) {
-      log("0 (constraint removal, base case)")
+      logger.debug("0 (constraint removal, base case)")
       zero
     } else {
       val newDomainSizes = domainSizes + (cr.subdomain, domainSize - 1) +
@@ -530,7 +525,7 @@ protected class SignLogDoubleWmc(
           predicateWeights
         )
       )
-      log(s"$child (constraint removal)")
+      logger.debug(s"$child (constraint removal)")
       child
     }
   }
@@ -559,7 +554,7 @@ protected class SignLogDoubleWmc(
       val childchildWmc = visit(dr.mixedChild.get.child.get, params)
       val power = (maxSize * (maxSize - 1)) / 2
       val answer = groundChildWmc.pow(maxSize) * childchildWmc.pow(power)
-      log(
+      logger.debug(
         s"$groundChildWmc ^ $maxSize * $childchildWmc ^ $power = $answer (domain recursion)"
       )
       answer
@@ -585,9 +580,9 @@ protected class SignLogDoubleWmc(
       val childWeight = visit(exists.child.get, newParams)
       val binomialCoeff = Binomial.coeff(maxSize, nbTrue).toSignDouble
       logWeight += binomialCoeff * childWeight
-      log(s" + $maxSize C $nbTrue * $childWeight")
+      logger.debug(s" + $maxSize C $nbTrue * $childWeight")
     }
-    log(s"= $logWeight\n")
+    logger.debug(s"= $logWeight\n")
     logWeight
   }
 
@@ -606,7 +601,7 @@ protected class SignLogDoubleWmc(
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -631,11 +626,11 @@ protected class SignLogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = idr.domain.size(domainSizes, idr.ineqs)
     if (maxSize < 1) {
-      log("1 (improved domain recursion, base case)")
+      logger.debug("1 (improved domain recursion, base case)")
       one
     } else {
       val childchildWmc = visit(idr.mixedChild.get, params)
-      log(s"$childchildWmc (improved domain recursion)")
+      logger.debug(s"$childchildWmc (improved domain recursion)")
       childchildWmc
     }
   }
@@ -648,7 +643,7 @@ protected class SignLogDoubleWmc(
     val plus2lwmc = visit(ie.plus2.get, params)
     val minlwmc = visit(ie.min.get, params)
     val answer = plus1lwmc + plus2lwmc - minlwmc
-    log(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
+    logger.debug(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
     answer
   }
 
@@ -659,7 +654,7 @@ protected class SignLogDoubleWmc(
     val llwmcc = visit(or.l.get, params)
     val rlwmcc = visit(or.r.get, params)
     val answer = llwmcc + rlwmcc
-    log(s"$llwmcc + $rlwmcc = $answer (or)")
+    logger.debug(s"$llwmcc + $rlwmcc = $answer (or)")
     answer
   }
 
@@ -671,7 +666,7 @@ protected class SignLogDoubleWmc(
     val newDomainSizes = domainSizes.shrink(ref.domainMap)
     val answer =
       visit(ref.nnfNode.get, (newDomainSizes, predicateWeights))
-    log(s"$answer (ref)")
+    logger.debug(s"$answer (ref)")
     answer
   }
 
@@ -684,7 +679,7 @@ protected class SignLogDoubleWmc(
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
     val weight = weights.negWPlusPosW
     val answer = weight.pow(nbGroundings)
-    log(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
+    logger.debug(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
     answer
   }
 
@@ -705,12 +700,12 @@ protected class SignLogDoubleWmc(
     } else if (leaf.positive) {
       val weight = weights.posW
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (positive leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (positive leaf)")
       answer
     } else {
       val weight = weights.negW
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (negative leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (negative leaf)")
       answer
     }
   }
@@ -746,7 +741,7 @@ protected class CachingLogDoubleWmc extends LogDoubleWmc {
     else {
       val rlwmcc = retrieveWmc(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -762,7 +757,7 @@ protected class CachingLogDoubleWmc extends LogDoubleWmc {
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -822,7 +817,7 @@ protected class CachingSignLogDoubleWmc extends SignLogDoubleWmc {
     else {
       val rlwmcc = retrieveWmc(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -838,7 +833,7 @@ protected class CachingSignLogDoubleWmc extends SignLogDoubleWmc {
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer

@@ -1,7 +1,6 @@
 *.nnf
 /target
 *~
-/bin
 *.class
 *.log
 .bloop
@@ -33,3 +32,4 @@ project
 .classpath
 
 nnfs/
+.bsp/

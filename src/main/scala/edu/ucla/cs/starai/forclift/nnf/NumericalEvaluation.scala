@@ -16,7 +16,7 @@ object NumericalEvaluation {
   val COMPILE_FLAGS: Array[String] = Array("-w", "-std=c++17")
   val LINK_FLAGS: Array[String] = Array("-lgmpxx", "-lgmp")
   val OBJ_FILE_PATH: String = "bin/test.exe"
-  val CODE_FILE_PATH: String = "src/main/cpp/test.cpp"
+  val CODE_FILE_PATH: String = "bin/test.cpp"
   val PARSER_BIN_PATH: String = "bin/shunting_yard.exe"
   val PARSER_CODE_PATH: String = "src/main/cpp/shunting_yard.cpp"
   val IN_FILE_PATH: String = "bin/equations.in"

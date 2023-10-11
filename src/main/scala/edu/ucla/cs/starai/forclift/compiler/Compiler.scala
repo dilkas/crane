@@ -18,7 +18,7 @@
 package edu.ucla.cs.starai.forclift.compiler
 
 import collection._
-
+import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent._
 
 import edu.ucla.cs.starai.forclift.nnf._
@@ -115,7 +115,7 @@ trait LiftedCompiler extends AbstractCompiler {
   */
 abstract class AbstractCompiler(
     val nnfCache: Compiler.Buckets = new Compiler.Buckets
-) extends Compiler {
+) extends Compiler with LazyLogging {
 
   // ============================== TYPES ====================================
 
@@ -132,19 +132,10 @@ abstract class AbstractCompiler(
 
   protected type InferenceRule = CNF => InferenceResult
 
-  // ============================== DATA ======================================
-
-  /** A hacky way to turn a bunch of println statements on and off. */
-  private[this] val Verbose = true
-
   // ============================== MISC METHODS ==============================
 
   /** The main purpose of myClone is to call cloneCache. */
   def myClone(): AbstractCompiler
-
-  /** Used to log what compilation rules are being applied and how they change
-    * the formula. */
-  @inline protected final def log(s: => Any): Unit = if (Verbose) println(s)
 
   def cannotCompile(cnf: CNF): NNFNode
 
@@ -225,13 +216,13 @@ abstract class AbstractCompiler(
         }
       }.collectFirst { case Some(x) => x } match {
         case Some(results) => {
-          log("\nCache hit.")
-          log("Before:")
-          log(cnf)
-          log("After:")
-          log(results._1.cnf)
-          log("Domain map:")
-          log(results._2 + "\n")
+          logger.debug("\nCache hit.")
+          logger.debug("Before:")
+          logger.debug(cnf.toString)
+          logger.debug("After:")
+          logger.debug(results._1.cnf.toString)
+          logger.debug("Domain map:")
+          logger.debug(results._2 + "\n")
 
           val node = new Ref(cnf, Some(results._1), results._2, "Cache hit.")
           // don't cache the Ref node because the node targeted by this Ref
