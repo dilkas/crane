@@ -216,13 +216,13 @@ abstract class AbstractCompiler(
         }
       }.collectFirst { case Some(x) => x } match {
         case Some(results) => {
-          logger.debug("\nCache hit.")
-          logger.debug("Before:")
-          logger.debug(cnf.toString)
-          logger.debug("After:")
-          logger.debug(results._1.cnf.toString)
-          logger.debug("Domain map:")
-          logger.debug(results._2 + "\n")
+          logger.trace("\nCache hit.")
+          logger.trace("Before:")
+          logger.trace(cnf.toString)
+          logger.trace("After:")
+          logger.trace(results._1.cnf.toString)
+          logger.trace("Domain map:")
+          logger.trace(results._2 + "\n")
 
           val node = new Ref(cnf, Some(results._1), results._2, "Cache hit.")
           // don't cache the Ref node because the node targeted by this Ref

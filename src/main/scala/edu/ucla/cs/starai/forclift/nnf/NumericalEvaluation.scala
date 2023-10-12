@@ -7,11 +7,13 @@ import java.nio.file.{Paths, Files}
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.Map
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.Domain
 
-object NumericalEvaluation {
+object NumericalEvaluation extends LazyLogging {
   val CPP_COMPILER: String = "g++"
   val COMPILE_FLAGS: Array[String] = Array("-w", "-std=c++17")
   val LINK_FLAGS: Array[String] = Array("-lgmpxx", "-lgmp")
@@ -36,7 +38,7 @@ object NumericalEvaluation {
     // compiling and running the parser
     val parser_bin = new File(PARSER_BIN_PATH)
     if (!parser_bin.exists() || !parser_bin.isFile) {
-      println("Compiling the parser ....")
+      logger.info("Compiling the parser...")
       val compile_cmd: Seq[String] =
         Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(
           PARSER_CODE_PATH,
@@ -67,9 +69,9 @@ object NumericalEvaluation {
         "Parser execution failed - \n" + exec_err.mkString("\n")
       )
     }
-    println("\n********** CPP CODE **********\n")
-    exec_out.foreach(println(_))
-    println("\n********** END OF CPP CODE **********\n")
+    logger.debug("\n********** CPP CODE **********\n")
+    exec_out.foreach(logger.debug(_))
+    logger.debug("\n********** END OF CPP CODE **********\n")
     val code_file = new File(CODE_FILE_PATH)
     val code_file_writer = new FileWriter(code_file)
     val buffered_code_file_writer = new BufferedWriter(code_file_writer)

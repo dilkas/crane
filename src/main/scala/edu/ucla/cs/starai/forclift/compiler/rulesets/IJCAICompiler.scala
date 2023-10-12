@@ -41,7 +41,7 @@ abstract class IJCAI11Compiler(
 
   def tryTautology(cnf: CNF) = {
     if (cnf.isTautology) {
-      logger.debug("\ntautology\n")
+      logger.trace("\ntautology\n")
       List((Some(TrueNode), List[CNF]()))
     } else List[Result]()
   }
@@ -69,10 +69,10 @@ abstract class IJCAI11Compiler(
   def tryContradictionClause(cnf: CNF) = {
     val isConditionalContradiction = cnf.clauses.size == 1 && cnf.clauses.head.isConditionalContradiction
     if (isConditionalContradiction) {
-      logger.debug("\ncontradiction clause")
+      logger.trace("\ncontradiction clause")
       val contradiction = cnf.clauses.head
       val contradictionLeaf = new ContradictionLeaf(cnf, contradiction.toContradictionClause, true)
-      logger.debug(cnf.toString + "\n")
+      logger.trace(cnf.toString + "\n")
       List((Some(contradictionLeaf), List[CNF]()))
     } else List[Result]()
   }
@@ -90,10 +90,10 @@ abstract class IJCAI11Compiler(
       val unitCNF = CNF(unitClause)
       val msg = "Unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
-      logger.debug("\nPositive " + msg + " Before:")
-      logger.debug(cnf.toString)
-      logger.debug("After:")
-      logger.debug(branchCnf + "\n")
+      logger.trace("\nPositive " + msg + " Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After:")
+      logger.trace(branchCnf + "\n")
       List((Some(node), List(unitCNF, branchCnf)))
     } else List[Result]()
   }
@@ -109,10 +109,10 @@ abstract class IJCAI11Compiler(
       val unitCNF = CNF(unitClause)
       val msg = "Unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
-      logger.debug("\nNegative " + msg + " Before:")
-      logger.debug(cnf.toString)
-      logger.debug("After:")
-      logger.debug(branchCnf + "\n")
+      logger.trace("\nNegative " + msg + " Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After:")
+      logger.trace(branchCnf + "\n")
       List((Some(node), List(unitCNF, branchCnf)))
     } else List[Result]()
   }
@@ -120,11 +120,11 @@ abstract class IJCAI11Compiler(
   def tryRemoveDoubleClauses(cnf: CNF): InferenceResult = {
     val newClauses = cnf.clauses.toSet.toList
     if (newClauses.size < cnf.clauses.size) {
-      logger.debug("\nremove double clauses. Before:")
-      logger.debug(cnf + "\n")
+      logger.trace("\nremove double clauses. Before:")
+      logger.trace(cnf + "\n")
       val newCnf = new CNF(newClauses)
-      logger.debug("After:")
-      logger.debug(newCnf + "\n")
+      logger.trace("After:")
+      logger.trace(newCnf + "\n")
       List((None, List(newCnf)))
     } else List[Result]()
   }
@@ -152,12 +152,12 @@ abstract class IJCAI11Compiler(
       val msg = if (!afterShattering) "Independence." else "Independence after shattering."
       val node = new And(cnf, None, None, msg)
 
-      logger.debug("\n" + msg + " Before:")
-      logger.debug(cnf.toString)
-      logger.debug("After 1:")
-      logger.debug(new CNF(dep).toString)
-      logger.debug("After 2:")
-      logger.debug(new CNF(indep) + "\n")
+      logger.trace("\n" + msg + " Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After 1:")
+      logger.trace(new CNF(dep).toString)
+      logger.trace("After 2:")
+      logger.trace(new CNF(indep) + "\n")
 
       List((Some(node), List(new CNF(dep), new CNF(indep))))
     }
@@ -171,8 +171,8 @@ abstract class IJCAI11Compiler(
     val shatteredCnf = shatter(cnf)
     if (cnf eq shatteredCnf) List[Result]()
     else {
-      logger.debug("\nindependent subtheories after shattering")
-      logger.debug(cnf.toString + "\n")
+      logger.trace("\nindependent subtheories after shattering")
+      logger.trace(cnf.toString + "\n")
       tryIndependentSubtheories(shatteredCnf, true)
     }
   }
@@ -210,12 +210,12 @@ abstract class IJCAI11Compiler(
       val falseBranch = cnf + Clause(List(), List(literal))
       val msg = "Shannon decomposition on $" + literal.toLatex(new VarNameSpace) + "$."
       val node = new Or(cnf, None, None, msg)
-      logger.debug("\n" + msg + " Before:")
-      logger.debug(cnf.toString)
-      logger.debug("After 1:")
-      logger.debug(trueBranch.toString)
-      logger.debug("After 2:")
-      logger.debug(falseBranch + "\n")
+      logger.trace("\n" + msg + " Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After 1:")
+      logger.trace(trueBranch.toString)
+      logger.trace("After 2:")
+      logger.trace(falseBranch + "\n")
       List((Some(node), List(trueBranch, falseBranch)))
     } else List[Result]()
   }
@@ -232,12 +232,12 @@ abstract class IJCAI11Compiler(
       val msg = "Inclusion-exclusion on $" + clause.toLatex() + "$."
       val node = new InclusionExclusion(cnf, None, None, None, msg)
 
-      logger.debug("\nInclusion-exclusion. Before:")
-      logger.debug(cnf.toString)
-      logger.debug("After 1:")
-      logger.debug(cl1.toString)
-      logger.debug("After 2:")
-      logger.debug(cl2.toString)
+      logger.trace("\nInclusion-exclusion. Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After 1:")
+      logger.trace(cl1.toString)
+      logger.trace("After 2:")
+      logger.trace(cl2.toString)
 
       List((Some(node), List(plus1Branch, plus2Branch, minBranch)))
     } else List[Result]()
@@ -291,7 +291,7 @@ abstract class IJCAI11Compiler(
       val finalChoice = searchChoices(chosenVariables,chosenClauses,multiRoots.sortBy(_.rootVars.size))
       if(finalChoice.isEmpty) return List[Result]()
       else{
-        logger.debug("\nindependent partial grounding")
+        logger.trace("\nindependent partial grounding")
     	  val solution = finalChoice.get
     	  val rootVars = solution.values.toSet
 	      val rootVarDomains = rootVars.flatMap { rootVar =>
@@ -316,7 +316,7 @@ abstract class IJCAI11Compiler(
 	        (if (rootVarIneqs.isEmpty) "." else """, $ """ + rootVarIneqs.map { """X \neq """ + _.toString }.mkString(" , ") + " $."))
         val inversionNode = new IndependentPartialGroundingNode(
           cnf, None, constant, rootVarIneqs, rootVarDomain, msg)
-        logger.debug(cnf.toString + "\n")
+        logger.trace(cnf.toString + "\n")
 	      List((Some(inversionNode), List(invertedCNF)))
       }
     }
@@ -417,8 +417,8 @@ abstract class IJCAI11Compiler(
       }
     }
     if (singletons.nonEmpty) {
-      logger.debug("\nAtom counting. Before:")
-      logger.debug(cnf.toString)
+      logger.trace("\nAtom counting. Before:")
+      logger.trace(cnf.toString)
       // the heuristic is: split on the atom with highest #occurences - domain size
       val groupedAtoms = singletons.map {
         case (clause1, lit1, constrs1) =>
@@ -451,8 +451,8 @@ abstract class IJCAI11Compiler(
       val childCNF = new CNF(trueUnitClause :: falseUnitClause :: cnf.clauses)
 
       val node = new CountingNode(cnf, None, domain, subdomain, msg)
-      logger.debug("After:")
-      logger.debug(childCNF + "\n")
+      logger.trace("After:")
+      logger.trace(childCNF + "\n")
       List((Some(node), List(childCNF)))
     } else List[Result]()
   }

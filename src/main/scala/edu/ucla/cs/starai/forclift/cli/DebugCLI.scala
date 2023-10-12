@@ -17,6 +17,7 @@
 
 package edu.ucla.cs.starai.forclift.cli
 
+import com.typesafe.scalalogging.LazyLogging
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import ch.qos.logback.core.joran.spi.JoranException
@@ -39,10 +40,11 @@ import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 
 /** Handle all debugging logic for CLI
   */
-class DebugCLI(argumentParser: ArgotParser) {
+class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
 
-  val VerboseConfig = "src/main/resources/verbose.xml"
-  val NonVerboseConfig = "src/main/resources/nonverbose.xml"
+  val TraceConfig = "src/main/resources/logback/trace.xml"
+  val DebugConfig = "src/main/resources/logback/debug.xml"
+  val InfoConfig = "src/main/resources/logback/info.xml"
 
   /* DEBUGGING FLAGS */
 
@@ -50,10 +52,12 @@ class DebugCLI(argumentParser: ArgotParser) {
     (s, opt) => argumentParser.usage("")
   }
 
-  // TODO change to using verbosity levels (int)
-  val verboseFlag = argumentParser
-    .flag[Boolean](List("v", "verbose"), "Verbose output (and verbose pdf).")
-  def verbose = verboseFlag.value.getOrElse(false)
+  val verbosityFlag = argumentParser.option[Int](
+    List("v", "verbosity"),
+    "integer",
+    "Verbosity level (0, 1, or 2; default 0)")
+  def verbosity = verbosityFlag.value.getOrElse(0)
+  def verbose = verbosity > 0
 
   val verifyWmcFlag = argumentParser.flag[Boolean](
     List("verify"),
@@ -70,12 +74,6 @@ class DebugCLI(argumentParser: ArgotParser) {
   val showGroundingFlag = argumentParser
     .flag[Boolean](List("ground"), "Show a ground CNF for the model.")
   def showGrounding = showGroundingFlag.value.getOrElse(false)
-
-  val outputFunctionsFlag = argumentParser.flag[Boolean](
-    List("f", "functions"),
-    "Output the definitions of functions."
-  )
-  def outputFunctions = outputFunctionsFlag.value.getOrElse(false)
 
   private def domainSizesConverter(
       s: String,
@@ -97,16 +95,21 @@ class DebugCLI(argumentParser: ArgotParser) {
       val configurator = new JoranConfigurator()
       configurator.setContext(context)
       context.reset()
-      configurator.doConfigure(if (verbose) VerboseConfig else NonVerboseConfig)
+      if (verbosity == 0) {
+        configurator.doConfigure(InfoConfig)
+      } else if (verbosity == 1) {
+        configurator.doConfigure(DebugConfig)
+      } else {
+        configurator.doConfigure(TraceConfig)
+      }
     } catch {
       case _: JoranException =>
     }
     StatusPrinter.printInCaseOfErrorsOrWarnings(context)
 
     if (showGrounding) {
-      println("Ground model:")
-      println(inputCLI.model.ground)
-      println
+      logger.info("Ground model:")
+      logger.info(inputCLI.model.ground + "\n")
     }
 
     if (verifyWmc) {
@@ -145,28 +148,26 @@ class DebugCLI(argumentParser: ArgotParser) {
       }
     }
 
-    if (outputFunctions) {
-      inputCLI.wcnfModel.SimplifyInWolfram
-        .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
-        .foreach { println(_) }
+    val equations = inputCLI.wcnfModel.SimplifyInWolfram
 
-      NumericalEvaluation.generate_cpp_code(
-        inputCLI.wcnfModel,
-        inputCLI.wcnfModel.varDomainMap,
-        inputCLI.wcnfModel.SimplifyInWolfram
-          .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
-          .toArray,
-        domainSizes.value.size match {
-          case 0 => None
-          case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
-        }
-      )
-      val ans: BigInt = NumericalEvaluation.get_numerical_answer()
+    logger.debug("")
+    equations.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+      .foreach { logger.debug(_) }
 
-      // Format the BigInt with commas
-      val formattedNumber =
-        ans.toString().reverse.grouped(3).mkString(",").reverse
-      println("Model Count : " + formattedNumber)
-    }
+    NumericalEvaluation.generate_cpp_code(
+      inputCLI.wcnfModel,
+      inputCLI.wcnfModel.varDomainMap,
+      equations.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).toArray,
+      domainSizes.value.size match {
+        case 0 => None
+        case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
+      }
+    )
+    val ans: BigInt = NumericalEvaluation.get_numerical_answer()
+
+    // Format the BigInt with commas
+    val formattedNumber =
+      ans.toString().reverse.grouped(3).mkString(",").reverse
+    logger.info("Model count: " + formattedNumber)
   }
 }

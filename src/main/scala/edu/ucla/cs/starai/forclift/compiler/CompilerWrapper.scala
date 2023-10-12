@@ -18,6 +18,8 @@ package edu.ucla.cs.starai.forclift.compiler
 
 import scala.util.Try
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
@@ -36,7 +38,7 @@ object CompilerWrapper {
 class CompilerWrapper(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
     grounding: Boolean = false
-) extends Compiler {
+) extends Compiler with LazyLogging {
 
   /** Search type is read from an environmental variable, with greedy search as
     * the default.
@@ -49,9 +51,9 @@ class CompilerWrapper(
   lazy val greedy: Boolean = {
     val g = Try(sys.env.get("GREEDY").get.toBoolean).getOrElse(true)
     if (g) {
-      println("Starting greedy search")
+      logger.info("Starting greedy search.")
     } else {
-      println("Starting breadth-first search")
+      logger.info("Starting breadth-first search.")
     }
     g
   }

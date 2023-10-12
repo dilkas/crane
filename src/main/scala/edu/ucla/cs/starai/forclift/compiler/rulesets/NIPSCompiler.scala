@@ -54,7 +54,7 @@ abstract class NIPS11Compiler(
         clause.literalVariables.forall { clause.constrs.domainFor(_) == domain }
       }, "There is only one domain for all logical variables, if IPG failed.")
 
-      logger.debug("\ndomain recursion")
+      logger.trace("\ndomain recursion")
 
       val ineqs = cnf.clauses.head.constrs.ineqConstrs(cnf.clauses.head.literalVariables.head).collect { case c: Constant => c }
       val constant = groundingConstantFor(cnf, domain)
@@ -92,7 +92,7 @@ abstract class NIPS11Compiler(
         cnf,
         Some(mixedNnf.head._1.get.asInstanceOf[IndependentPartialGroundingNode]),
         None, constant, ineqs, domain, msg)
-      logger.debug(cnf + "\n")
+      logger.trace(cnf + "\n")
       List((Some(node), List(groundCNF)))
     } else List[Result]()
   }
