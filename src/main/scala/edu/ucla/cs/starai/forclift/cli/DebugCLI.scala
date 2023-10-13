@@ -76,6 +76,12 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     .flag[Boolean](List("ground"), "Show a ground CNF for the model.")
   def showGrounding = showGroundingFlag.value.getOrElse(false)
 
+  val numericalFlag = argumentParser.flag[Boolean](
+    List("n", "numerical"),
+    "Compute the model count numerically by running the C++ program with the domain sizes provided as part of the instance."
+  )
+  def numerical = numericalFlag.value.getOrElse(false)
+
   def runDebugging(inputCLI: InputCLI) {
     // manage verbosity levels
     val context = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
@@ -136,8 +142,8 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
       }
     }
 
+    // Print the final set of equations (assuming a sufficient verbosity level)
     val equations = inputCLI.wcnfModel.SimplifyInWolfram
-
     logger.debug("")
     equations
       .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
@@ -151,12 +157,16 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
         .toArray,
       inputCLI.parser.domains.reverse
     )
-    val ans: BigInt =
-      NumericalEvaluation.get_numerical_answer(inputCLI.wcnfModel.domainSizes)
 
-    // Format the BigInt with commas
-    val formattedNumber =
-      ans.toString().reverse.grouped(3).mkString(",").reverse
-    logger.info("Model count: " + formattedNumber)
+    // Run the C++ program and get the output
+    if (numerical) {
+      logger.info("Compilation finished. Running the C++ program...")
+      val ans: BigInt =
+        NumericalEvaluation.get_numerical_answer(inputCLI.wcnfModel.domainSizes)
+      // Format the BigInt with commas
+      val formattedNumber =
+        ans.toString().reverse.grouped(3).mkString(",").reverse
+      logger.info("Model count: " + formattedNumber)
+    }
   }
 }
