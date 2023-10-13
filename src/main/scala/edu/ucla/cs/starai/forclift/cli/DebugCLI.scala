@@ -55,7 +55,8 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
   val verbosityFlag = argumentParser.option[Int](
     List("v", "verbosity"),
     "integer",
-    "Verbosity level (0, 1, or 2; default 0)")
+    "Verbosity level (0, 1, or 2; default 0)"
+  )
   def verbosity = verbosityFlag.value.getOrElse(0)
   def verbose = verbosity > 0
 
@@ -75,21 +76,8 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     .flag[Boolean](List("ground"), "Show a ground CNF for the model.")
   def showGrounding = showGroundingFlag.value.getOrElse(false)
 
-  private def domainSizesConverter(
-      s: String,
-      m: org.clapper.argot.MultiValueOption[List[Int]]
-  ): List[Int] = {
-    s.split(",").map(_.toInt).toList
-  }
-
-  val domainSizes = argumentParser.multiOption[List[Int]](
-    List("sizes"),
-    "List of domain sizes",
-    "<size1,size2,...>"
-  )(domainSizesConverter)
-
   def runDebugging(inputCLI: InputCLI) {
-
+    // manage verbosity levels
     val context = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
     try {
       val configurator = new JoranConfigurator()
@@ -151,19 +139,20 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     val equations = inputCLI.wcnfModel.SimplifyInWolfram
 
     logger.debug("")
-    equations.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+    equations
+      .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
       .foreach { logger.debug(_) }
 
     NumericalEvaluation.generate_cpp_code(
       inputCLI.wcnfModel,
       inputCLI.wcnfModel.varDomainMap,
-      equations.map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", ""))).toArray,
-      domainSizes.value.size match {
-        case 0 => None
-        case _ => Some(domainSizes.value(0).map(_.toString()).mkString(","))
-      }
+      equations
+        .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+        .toArray,
+      inputCLI.parser.domains.reverse
     )
-    val ans: BigInt = NumericalEvaluation.get_numerical_answer()
+    val ans: BigInt =
+      NumericalEvaluation.get_numerical_answer(inputCLI.wcnfModel.domainSizes)
 
     // Format the BigInt with commas
     val formattedNumber =

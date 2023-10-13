@@ -10,6 +10,7 @@ import scala.collection.mutable.Map
 import com.typesafe.scalalogging.LazyLogging
 
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
+import edu.ucla.cs.starai.forclift.inference.DomainSizes
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.Domain
 
@@ -22,8 +23,9 @@ object NumericalEvaluation extends LazyLogging {
   val PARSER_BIN_PATH: String = "bin/shunting_yard.exe"
   val PARSER_CODE_PATH: String = "src/main/cpp/shunting_yard.cpp"
   val IN_FILE_PATH: String = "bin/equations.in"
+  var domains: List[Domain] = List()
 
-  def generate_cpp_code(equations: Array[String], target: String): Unit = {
+  def generate_cpp_code(equations: Array[String], domainInfo: String): Unit = {
     // creating the input file
     val in_file = new File(IN_FILE_PATH)
     val in_file_writer = new FileWriter(in_file)
@@ -31,7 +33,7 @@ object NumericalEvaluation extends LazyLogging {
     buffered_in_file_writer.write(
       equations.size.toString() + "\n" + equations.mkString(
         "\n"
-      ) + "\n" + target
+      ) + "\n" + domainInfo + "\n"
     )
     buffered_in_file_writer.flush()
 
@@ -83,8 +85,9 @@ object NumericalEvaluation extends LazyLogging {
       wcnf: WeightedCNF,
       var_domain_map: Map[String, Domain],
       equations: Array[String],
-      target: Option[String] = None
+      domains: List[Domain]
   ): Unit = {
+    this.domains = domains
     var new_equations: Array[String] = new Array[String](equations.length)
     equations.copyToArray(new_equations)
     new_equations = new_equations.map(eqn => {
@@ -95,42 +98,13 @@ object NumericalEvaluation extends LazyLogging {
       new_eqn = new_eqn.replaceAll("\\.[0-9]*", "")
       new_eqn
     })
-    var target_str: String = target match {
-      case Some(x) => "f0(" + x + ")"
-      case None => {
-        var target_str = "f0("
-        for (eqn <- new_equations) {
-          val index_of_equals: Int = eqn.indexOf('=')
-          val lhs: FuncCall = new FuncCall(
-            eqn.substring(0, index_of_equals).replaceAll(" ", "")
-          )
-          if (lhs.func_name == "f0") {
-            var is_base_call: Boolean = true
-            for (arg <- lhs.args) {
-              if (
-                arg.terms.size != 1 || !arg
-                  .terms(0)
-                  ._1 || !arg.terms(0)._2.matches("x[0-9]+")
-              )
-                is_base_call = false
-            }
-            if (is_base_call) {
-              for (arg <- lhs.args) {
-                val dom_size: Int =
-                  wcnf.domainSizes(var_domain_map(arg.terms(0)._2)).size
-                target_str += dom_size.toString() + ","
-              }
-              target_str = target_str.substring(0, target_str.size - 1) + ")"
-            }
-          }
-        }
-        target_str
-      }
-    }
-    return generate_cpp_code(new_equations, target_str)
+    return generate_cpp_code(
+      new_equations,
+      (domains.size.toString :: domains.map(_.toString)).mkString(" ")
+    )
   }
 
-  def get_numerical_answer(): BigInt = {
+  def get_numerical_answer(domainSizes: DomainSizes): BigInt = {
     val compile_cmd: Seq[String] =
       Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(
         CODE_FILE_PATH,
@@ -147,7 +121,9 @@ object NumericalEvaluation extends LazyLogging {
         "Code compile failed - \n" + compile_err.mkString("\n")
       )
     }
-    val exec_cmd: Seq[String] = Seq(OBJ_FILE_PATH)
+
+    val exec_cmd =
+      OBJ_FILE_PATH :: domains.map(domain => domainSizes(domain).size.toString)
     val exec_proc: ProcessBuilder =
       Process(exec_cmd, Some(new java.io.File(".")))
     val exec_out: ListBuffer[String] = ListBuffer()

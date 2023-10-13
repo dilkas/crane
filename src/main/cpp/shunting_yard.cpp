@@ -661,7 +661,7 @@ string generate_function_def(string eqn) {
   Expression rhs =
       handle_pow(parseExpression(eqn.substr(loc + 1, eqn.size() - loc - 1)));
   string signature =
-      get_function_signature(lhs, "mpz_class", "unsigned int", "");
+      get_function_signature(lhs, "mpz_class", "unsigned long", "");
   code << signature << "{\n";
 
   // check if the element is present in the cache
@@ -794,7 +794,7 @@ string generate_cpp_code(vector<string> equations) {
   for (auto &eqn : equations) {
     code << get_function_signature(
                 parseExpression(eqn.substr(0, eqn.find('='))).at(0),
-                "mpz_class", "unsigned int")
+                "mpz_class", "unsigned long")
          << "\n";
   }
   code << "\n";
@@ -815,10 +815,15 @@ set<pair<string, int>> get_functions(vector<string> equations) {
 }
 
 string generate_cpp_code_with_main(vector<string> equations,
-                                   /*vector<int> args,*/ string target) {
+                                   const vector<string> &domains) {
   stringstream code;
-  code << "#include <iostream>\n#include <string>\n#include <vector>\n#include "
-          "<cmath>\n#include <gmpxx.h>\n\n";
+  code << "#include <array>" << endl
+       << "#include <iostream>" << endl
+       << "#include <string>" << endl
+       << "#include <vector>" << endl
+       << "#include <cmath>" << endl
+       << "#include <gmpxx.h>" << endl
+       << endl;
 
   // helper code
   code
@@ -826,10 +831,10 @@ string generate_cpp_code_with_main(vector<string> equations,
          "x) : n{x} {}\n\tcache_elem() : n{-1} {}\n};\n\n";
   code << "template <class T> T& get_elem(std::vector<T>& a, size_t n){\n\tif "
           "(n >= a.size()){\n\t\ta.resize(n+1);\n\t}\n\treturn a.at(n);\n}\n\n";
-  code << "mpz_class Binomial(unsigned int n, unsigned int r){\n\tmpz_t "
+  code << "mpz_class Binomial(unsigned long n, unsigned long r){\n\tmpz_t "
           "ans;\n\tmpz_init(ans);\n\tmpz_bin_uiui(ans, n, r);\n\treturn "
           "mpz_class{ans};}\n\n";
-  code << "mpz_class power(mpz_class x, unsigned int y){\n\tmpz_t "
+  code << "mpz_class power(mpz_class x, unsigned long y){\n\tmpz_t "
           "ans;\n\tmpz_init(ans);\n\tmpz_pow_ui(ans, x.get_mpz_t(), "
           "y);\n\treturn mpz_class{ans};\n}\n\n";
 
@@ -848,7 +853,26 @@ string generate_cpp_code_with_main(vector<string> equations,
   }
   code << "\n";
   code << generate_cpp_code(equations) << endl;
-  code << "int main(){\n\tstd::cout << " << target << " << std::endl;\n}";
+
+  code << "int main(int argc, char *argv[]) {" << endl
+       << "\tif (argc != " << domains.size() << " + 1) {" << endl
+       << "\t\tstd::cerr << \"Please provide " << domains.size()
+       << " arguments for the following domains (in this order): ";
+  for (int i = 0; i < domains.size(); i++) {
+    if (i != 0)
+      code << ", ";
+    code << domains.at(i);
+  }
+  code << "\" << std::endl;" << endl
+       << "\t\texit(1);" << endl
+       << "\t}" << endl
+       << "\tstd::array<unsigned long, " << domains.size() << "> arguments;"
+       << endl
+       << "\tfor (int i = 1; i < argc; i++)" << endl
+       << "\t\targuments[i-1] = std::stoul(argv[i]);" << endl
+       << "\tstd::cout << std::apply(f0, arguments) << std::endl;" << endl
+       << "}" << endl;
+
   return code.str();
 }
 
@@ -865,7 +889,15 @@ int main(int argc, char *argv[]) {
   for (unsigned i{0}; i < num_equations; i++) {
     in_file >> equations.at(i);
   }
-  string target;
-  in_file >> target;
-  std::cout << generate_cpp_code_with_main(equations, target) << endl;
+
+  int num_domains;
+  in_file >> num_domains;
+  vector<string> domains;
+  for (int i = 0; i < num_domains; i++) {
+    string domain;
+    in_file >> domain;
+    domains.push_back(domain);
+  }
+
+  cout << generate_cpp_code_with_main(equations, domains) << endl;
 }
