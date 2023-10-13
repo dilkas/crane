@@ -1,0 +1,6 @@
+people = {1,...,3}
+stuff = {1,...,3}
+
+s(people, stuff)
+
+forall xa forall ya forall xb forall yb s(xa, ya) v !s(xb, ya) v s(xb, yb) v !s(xa, yb).

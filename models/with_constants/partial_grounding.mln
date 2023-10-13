@@ -1,0 +1,7 @@
+people = {1,...,3}
+
+f(people, people)
+
+forall y forall z !f(1, y) v !f(y, z) v f(1, z).
+forall y forall z !f(2, y) v !f(y, z) v f(2, z).
+forall y forall z !f(3, y) v !f(y, z) v f(3, z).

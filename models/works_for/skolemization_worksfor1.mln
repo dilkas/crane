@@ -1,0 +1,8 @@
+a = {1,...,3}
+b = {1,...,3}
+
+worksFor(a,b)
+boss(a)
+
+exist y worksFor(x,y) v boss(x)
+

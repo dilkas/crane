@@ -1,0 +1,9 @@
+a = {1,...,3}
+b = {1,...,3}
+
+p(a, b)
+
+p(x, y) ^ p(x, z) => y=z.
+
+// surjectivity
+forall y exist x p(x, y).
