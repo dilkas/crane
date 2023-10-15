@@ -46,7 +46,7 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
       logger.trace("Starting a new round of smoothing")
       nodes.foreach(changesMade |= visit(_, ()))
     }
-    logger.trace("Smoothing finished\n")
+    logger.trace("Smoothing finished")
   }
 
   // ========================= NON-SINK NODES =================================

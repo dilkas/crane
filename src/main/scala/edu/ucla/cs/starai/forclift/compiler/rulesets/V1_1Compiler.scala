@@ -22,16 +22,6 @@ import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler._
 import edu.ucla.cs.starai.forclift.nnf._
 
-object V1_1Compiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new V1_1LiftedCompiler(sizeHint)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new V1_1GroundingCompiler(sizeHint)
-
-}
-
 abstract class V1_1Compiler(
   sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
   nnfCache: Compiler.Buckets = new Compiler.Buckets

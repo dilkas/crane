@@ -21,16 +21,6 @@ import edu.ucla.cs.starai.forclift.compiler._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift._
 
-object MyCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new MyLiftedCompiler(sizeHint)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new MyGroundingCompiler(sizeHint)
-
-}
-
 /** The latest version of the compiler.
   *
   * Adds three more rules:

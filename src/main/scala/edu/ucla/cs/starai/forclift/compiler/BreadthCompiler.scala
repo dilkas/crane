@@ -24,16 +24,6 @@ import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
 
-object BreadthCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new BreadthCompiler(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new BreadthCompiler(sizeHint, true)
-
-}
-
 /** A variation of breadth-first search but with some rules applied in a greedy
   * manner.
   *

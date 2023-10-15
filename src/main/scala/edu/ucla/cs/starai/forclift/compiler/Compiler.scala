@@ -30,8 +30,10 @@ object Compiler {
   type Buckets = mutable.HashMap[Int, List[(CNF, NNFNode)]]
 
   object Builder {
-    val default: Builder = CompilerWrapper.builder
-    val defaultWithGrounding: Builder = CompilerWrapper.builderWithGrounding
+    val default: Builder = (sizeHint: SizeHints) =>
+      new CompilerWrapper(sizeHint, false)
+    val defaultWithGrounding: Builder = (sizeHint: SizeHints) =>
+      new CompilerWrapper(sizeHint, true)
   }
 
   type Builder = ((Domain => Int) => Compiler)
@@ -108,14 +110,15 @@ trait LiftedCompiler extends AbstractCompiler {
   *
   * Implements tryCache and some of the code used to apply rules to formulas
   * (the rest is in PartialCircuit).
-  * @param nnfCache maps hash codes of formulas to pairs of formulas and their
-  *                 circuit nodes. It is used to identify formulas potentially
-  *                 suitable for a Ref node, i.e., to add additional arcs to
-  *                 the circuit that make it no longer a tree.
+  * @param nnfCache
+  *   maps hash codes of formulas to pairs of formulas and their circuit nodes.
+  *   It is used to identify formulas potentially suitable for a Ref node, i.e.,
+  *   to add additional arcs to the circuit that make it no longer a tree.
   */
 abstract class AbstractCompiler(
     val nnfCache: Compiler.Buckets = new Compiler.Buckets
-) extends Compiler with LazyLogging {
+) extends Compiler
+    with LazyLogging {
 
   // ============================== TYPES ====================================
 
@@ -180,7 +183,8 @@ abstract class AbstractCompiler(
         !nnfCache.contains(cnf.hashCode) || !nnfCache(cnf.hashCode).exists {
           case (_, node) => node == nnf
         }
-      )) {
+      )
+    ) {
       nnfCache(cnf.hashCode) = (cnf, nnf) ::
         nnfCache.getOrElse(cnf.hashCode, List[(CNF, NNFNode)]())
     }
@@ -202,19 +206,21 @@ abstract class AbstractCompiler(
     } else {
       // println("tryCache: found. The bucket has " + nnfCache(cnf.hashCode).size +
       //           " elements.")
-      nnfCache(cnf.hashCode).toStream.map {
-        case (formula, circuit) => {
-          // println("tryCache: formula:")
-          // println(formula)
-          // println("tryCache: the other formula:")
-          // println(circuit.cnf)
+      nnfCache(cnf.hashCode).toStream
+        .map {
+          case (formula, circuit) => {
+            // println("tryCache: formula:")
+            // println(formula)
+            // println("tryCache: the other formula:")
+            // println(circuit.cnf)
 
-          CNF.identifyRecursion(cnf, formula) match {
-            case Some(recursion) => Some((circuit, recursion))
-            case None            => None
+            CNF.identifyRecursion(cnf, formula) match {
+              case Some(recursion) => Some((circuit, recursion))
+              case None            => None
+            }
           }
         }
-      }.collectFirst { case Some(x) => x } match {
+        .collectFirst { case Some(x) => x } match {
         case Some(results) => {
           logger.trace("\nCache hit.")
           logger.trace("Before:")
@@ -274,7 +280,7 @@ abstract class AbstractCompiler(
     nonGreedyRules(i)(cnf)
   } catch {
     // This works around some bugs related to shattering
-    case _: IllegalStateException => List[Result]()
+    case _: IllegalStateException         => List[Result]()
     case _: UnsupportedOperationException => List[Result]()
   }
 
@@ -289,22 +295,22 @@ abstract class AbstractCompiler(
           case Nil => {
             rules = rules.tail
           }
-          case (node, successors)::tail => {
+          case (node, successors) :: tail => {
             // We assume that all greedy rules produce at most one solution
             require(tail.isEmpty)
             node match {
               case None => {
                 require(successors.size == 1)
                 return applyGreedyRules(successors.head)
-                }
+              }
               case Some(nnf) => {
                 // println("applyGreedyRules: adding")
                 // println(cnf)
                 // println("AND")
                 // println(nnf.cnf)
                 updateCache(cnf, nnf)
-                val newSuccessors = applyGreedyRulesToAllFormulas(nnf,
-                                                                  successors)
+                val newSuccessors =
+                  applyGreedyRulesToAllFormulas(nnf, successors)
                 return new PartialCircuit(this, Some(nnf), newSuccessors)
               }
             }
@@ -312,7 +318,7 @@ abstract class AbstractCompiler(
         }
       } catch {
         // This works around a bug in the implementation of shattering
-        case _: IllegalStateException => rules = rules.tail
+        case _: IllegalStateException         => rules = rules.tail
         case _: UnsupportedOperationException => rules = rules.tail
       }
     }

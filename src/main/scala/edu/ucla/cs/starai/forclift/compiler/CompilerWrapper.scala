@@ -24,16 +24,6 @@ import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
 
-object CompilerWrapper {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new CompilerWrapper(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new CompilerWrapper(sizeHint, true)
-
-}
-
 /** A convenient way to switch between greedy and breadth-first search. */
 class CompilerWrapper(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),

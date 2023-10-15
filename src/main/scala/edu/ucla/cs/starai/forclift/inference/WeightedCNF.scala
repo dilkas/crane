@@ -37,16 +37,6 @@ case class WeightedCNF(
     compilerBuilder: Compiler.Builder = Compiler.Builder.default
 ) {
 
-  def setCompiler(newCompiledBuilder: Compiler.Builder) = {
-    WeightedCNF(
-      cnf,
-      domainSizes,
-      predicateWeights,
-      conditionedAtoms,
-      newCompiledBuilder
-    )
-  }
-
   def addDomainSizes(extraDomainSizes: DomainSizes) = {
     WeightedCNF(
       cnf,

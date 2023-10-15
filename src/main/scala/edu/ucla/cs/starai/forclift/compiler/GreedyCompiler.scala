@@ -20,16 +20,6 @@ import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.nnf._
 
-object GreedyCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new GreedyCompiler(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new GreedyCompiler(sizeHint, true)
-
-}
-
 /** The original way of constructing circuits via greedily applying whichever
   * inference rule is noticed to apply first.
   *

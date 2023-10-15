@@ -24,16 +24,6 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException
 import edu.ucla.cs.starai.forclift.nnf._
 import constraints._
 
-object IJCAI11Compiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new IJCAI11LiftedCompiler(sizeHint)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new IJCAI11GroundingCompiler(sizeHint)
-
-}
-
 abstract class IJCAI11Compiler(
   sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
   nnfCache: Compiler.Buckets = new Compiler.Buckets
