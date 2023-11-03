@@ -33,7 +33,8 @@ import edu.ucla.cs.starai.forclift.nnf._
   */
 class BreadthCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-    grounding: Boolean = false
+    grounding: Boolean = false,
+    skolemize: String = ""
 ) extends Compiler {
 
   /** Found solutions */
@@ -49,9 +50,13 @@ class BreadthCompiler(
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
-  def compilerBuilder =
-    if (grounding) new MyGroundingCompiler(sizeHint)
-    else new MyLiftedCompiler(sizeHint)
+  def compilerBuilder = if (skolemize.nonEmpty) {
+      new LiftedSkolemizer(sizeHint, skolemize)
+    } else if (grounding) {
+      new MyGroundingCompiler(sizeHint)
+    } else {
+      new MyLiftedCompiler(sizeHint)
+    }
 
   override def foundSolution(circuit: NNFNode): Unit = {
     circuits = circuit :: circuits

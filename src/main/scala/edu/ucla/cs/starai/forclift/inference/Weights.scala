@@ -26,10 +26,8 @@ import edu.ucla.cs.starai.forclift.propositional._
 import scala.collection._
 import util._
 
-
-/**
- * Keep track of weights, both natural and log space.
- */
+/** Keep track of weights, both natural and log space.
+  */
 abstract class Weights {
 
   def posW: SignLogDouble
@@ -53,37 +51,52 @@ object Weights {
 
 }
 
-final case class WeightsFromExp(val posWDouble: Double, val negWDouble: Double) extends Weights {
+final case class WeightsFromExp(val posWDouble: Double, val negWDouble: Double)
+    extends Weights {
   // cache everything for performance!
   val posW: SignLogDouble = posWDouble
   val negW: SignLogDouble = negWDouble
   val negWPlusPosW: SignLogDouble = negW + posW
   val negWPlusPosWDouble: Double = negWDouble + posWDouble
-  val posWLogDouble: LogDouble = if(posW.pos) posW.toLogDouble else LogDouble.NaN
-  val negWLogDouble: LogDouble = if(negW.pos) negW.toLogDouble else LogDouble.NaN
-  val negWPlusPosWLogDouble: LogDouble = if(negWPlusPosW.pos) negWPlusPosW.toLogDouble  else LogDouble.NaN
+  val posWLogDouble: LogDouble =
+    if (posW.pos) posW.toLogDouble else LogDouble.NaN
+  val negWLogDouble: LogDouble =
+    if (negW.pos) negW.toLogDouble else LogDouble.NaN
+  val negWPlusPosWLogDouble: LogDouble =
+    if (negWPlusPosW.pos) negWPlusPosW.toLogDouble else LogDouble.NaN
 }
 
-final case class WeightsFromLog(val posW: SignLogDouble, val negW: SignLogDouble) extends Weights {
+final case class WeightsFromLog(
+    val posW: SignLogDouble,
+    val negW: SignLogDouble
+) extends Weights {
   // cache everything for performance!
   val posWDouble = posW.toDouble
   val negWDouble = negW.toDouble
   val negWPlusPosW: SignLogDouble = negW + posW
   val negWPlusPosWDouble: Double = negWDouble + posWDouble
-  val posWLogDouble: LogDouble = if(posW.pos) posW.toLogDouble else LogDouble.NaN
-  val negWLogDouble: LogDouble = if(negW.pos) negW.toLogDouble else LogDouble.NaN
-  val negWPlusPosWLogDouble: LogDouble = if(negWPlusPosW.pos) negWPlusPosW.toLogDouble  else LogDouble.NaN
+  val posWLogDouble: LogDouble =
+    if (posW.pos) posW.toLogDouble else LogDouble.NaN
+  val negWLogDouble: LogDouble =
+    if (negW.pos) negW.toLogDouble else LogDouble.NaN
+  val negWPlusPosWLogDouble: LogDouble =
+    if (negWPlusPosW.pos) negWPlusPosW.toLogDouble else LogDouble.NaN
 }
 
-class PredicateWeights(val self: Map[Predicate, Weights] = Map.empty) extends MapProxy[Predicate, Weights] {
+class PredicateWeights(val self: Map[Predicate, Weights] = Map.empty)
+    extends MapProxy[Predicate, Weights] {
 
-  // println("Initialising a predicate weight map: " + toString)
+  def toFastWfomc = self.map { case (p, w) =>
+    (p.toFastWfomc -> List(w.posWDouble, w.negWDouble))
+  }.toMap
 
-  override def toString = self.iterator.map {
-    case (p, w) =>
-      val domains = if (p.domains.nonEmpty) p.domains.mkString("(", ",", ")") else ""
+  override def toString = self.iterator
+    .map { case (p, w) =>
+      val domains =
+        if (p.domains.nonEmpty) p.domains.mkString("(", ",", ")") else ""
       "predicate " + p + domains + " " + w.posWDouble + " " + w.negWDouble
-  }.mkString("\n")
+    }
+    .mkString("\n")
 
   def predicates = keySet
 
@@ -116,8 +129,11 @@ class PredicateWeights(val self: Map[Predicate, Weights] = Map.empty) extends Ma
 object PredicateWeights {
 
   val empty = new PredicateWeights(
-    Map.empty.withDefaultValue(WeightsFromExp(1, 1)))
+    Map.empty.withDefaultValue(WeightsFromExp(1, 1))
+  )
 
-  implicit def map2PredicateWeights(self: Map[Predicate, Weights]): PredicateWeights = new PredicateWeights(self)
+  implicit def map2PredicateWeights(
+      self: Map[Predicate, Weights]
+  ): PredicateWeights = new PredicateWeights(self)
 
 }

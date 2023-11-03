@@ -28,7 +28,8 @@ import edu.ucla.cs.starai.forclift.nnf.visitors._
 class CompilerWrapper(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
     grounding: Boolean = false
-) extends Compiler with LazyLogging {
+) extends Compiler
+    with LazyLogging {
 
   /** Search type is read from an environmental variable, with greedy search as
     * the default.
@@ -48,14 +49,21 @@ class CompilerWrapper(
     g
   }
 
-  lazy val compiler = if (greedy) {
-    new GreedyCompiler(sizeHint, grounding)
-  } else {
-    new BreadthCompiler(sizeHint, grounding)
+  lazy val skolemize: String = {
+    val s = Try(sys.env.get("SKOLEMIZE").get).getOrElse("")
+    if (s.nonEmpty)
+      logger.info("Performing only Skolemization and unit propagation.")
+    s
   }
 
-  /** After compilation completes, run two visitors on the circuit that
-    * together update the 'domains' field of NNFNode.
+  lazy val compiler = if (greedy) {
+    new GreedyCompiler(sizeHint, grounding, skolemize)
+  } else {
+    new BreadthCompiler(sizeHint, grounding, skolemize)
+  }
+
+  /** After compilation completes, run two visitors on the circuit that together
+    * update the 'domains' field of NNFNode.
     */
   override def compile(cnf: CNF): List[NNFNode] = {
     val nnfs = compiler.compile(cnf)

@@ -22,7 +22,9 @@ import java.lang.System._
 import scala.collection.JavaConverters._
 import scala.io._
 import org.clapper.argot._
+import upickle.default._
 import edu.ucla.cs.starai.forclift._
+import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.languages._
 import edu.ucla.cs.starai.forclift.learning.structure.StructureLearner
@@ -33,23 +35,34 @@ import edu.ucla.cs.starai.forclift.languages.focnf._
 
 object CLI extends App {
 
+  case class Instance(
+      formula: String,
+      // Int can be replaced with anything else here: it's always empty
+      cardinalities: List[Int],
+      weights: Map[String, List[Double]]
+  )
+
   assertFalse()
 
-  val argumentParser = new ArgotParser("wfomc", false, 80,
+  val argumentParser = new ArgotParser(
+    "wfomc",
+    false,
+    80,
     Some("Version 1.0"),
-    Some(
-"""
+    Some("""
 EXAMPLE
 
 java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
 java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
-"""), true)
+"""),
+    true
+  )
 
   val debugCLI = new DebugCLI(argumentParser)
-  val inputCLI = new InputCLI(argumentParser,debugCLI)
-  val inferenceCLI = new InferenceCLI(argumentParser,debugCLI,inputCLI)
-  val learningCLI = new LearningCLI(argumentParser,debugCLI,inputCLI)
-  val outputCLI = new OutputCLI(argumentParser,debugCLI,inputCLI)
+  val inputCLI = new InputCLI(argumentParser, debugCLI)
+  val inferenceCLI = new InferenceCLI(argumentParser, debugCLI, inputCLI)
+  val learningCLI = new LearningCLI(argumentParser, debugCLI, inputCLI)
+  val outputCLI = new OutputCLI(argumentParser, debugCLI, inputCLI)
 
   /* PARSE FLAGS AND HANDLE LOGIC */
 
@@ -65,8 +78,27 @@ java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
     case e: ArgotUsageException =>
       println(e.message)
       System.exit(1)
+    case e: SkolemizationFinishedException =>
+      implicit val ownerRw: ReadWriter[Instance] = macroRW[Instance]
+      val p = new java.io.PrintWriter(e.filename)
+      try {
+        p.write(
+          write(
+            Instance(
+              e.formula,
+              List(),
+              inputCLI.wcnfModel.predicateWeights.toFastWfomc
+            ),
+            indent = 4
+          )
+        )
+      } finally {
+        p.close()
+      }
+      System.exit(0)
   }
 
-  def assertFalse() = assert(false, "Assertions are enabled in CLI: check compiler flags")
+  def assertFalse() =
+    assert(false, "Assertions are enabled in CLI: check compiler flags")
 
 }

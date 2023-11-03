@@ -50,6 +50,8 @@ final case class Predicate(
     (new PositiveUnitClause(new Atom(this, vars: _*))).standardizeApart
   }
 
+  def toFastWfomc = name.name.toUpperCase.filterNot(Set('{', '}', '_').contains)
+
   override def toString = name.name.toString
 
   def toStringFull =
@@ -414,6 +416,21 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
     )
 
   // ========================= OUTPUT =========================================
+
+  def toFastWfomc(nameSpace: NameSpace[Var, String]) = {
+    var lastUsedVar = -1;
+    val argStrings = for (arg <- args) yield {
+      arg match {
+        case variable: Var => nameSpace.getName(variable).toLowerCase
+        case _: Constant   => arg.toString
+      }
+    }
+    if (predicate.arity == 0) {
+      predicate.toFastWfomc
+    } else {
+      predicate.toFastWfomc + argStrings.mkString("(", ", ", ")")
+    }
+  }
 
   def toLatex(nameSpace: NameSpace[Var, String]) = {
     var lastUsedVar = -1;

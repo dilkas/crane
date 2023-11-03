@@ -29,10 +29,18 @@ import edu.ucla.cs.starai.forclift.nnf._
   */
 class GreedyCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-    grounding: Boolean = false
+    grounding: Boolean = false,
+    skolemize: String = ""
 ) extends Compiler {
 
-  lazy val compiler = if (grounding) {
+  // TODO (Paulius): (here, in BreadthCompiler, CompilerWrapper, and
+  // Skolemizer): rename 'skolemize' -> 'skolemization_output_filename' (or
+  // something like that). Similarly, the environmental variable SKOLEMIZE
+  // should also be renamed.
+
+  lazy val compiler = if (skolemize.nonEmpty) {
+    new LiftedSkolemizer(sizeHint, skolemize)
+  } else if (grounding) {
     new MyGroundingCompiler(sizeHint)
   } else {
     new MyLiftedCompiler(sizeHint)
@@ -48,17 +56,9 @@ class GreedyCompiler(
         val (node, successors) = tryRule.head
         if (node.isEmpty) {
           require(successors.size == 1)
-          // println("GreedyCompile::compile: recursive call")
           nnf = compile(successors.head)
         } else {
           nnf = List(node.get)
-
-          // println("GreedyCompiler::compile: (" +
-          //           nnf.head.getClass.getSimpleName + ") adding")
-          // println(cnf)
-          // println("AND")
-          // println(nnf.head.cnf)
-
           compiler.updateCache(cnf, nnf.head)
           nnf.head.update(
             successors.map(successor => Some(compile(successor).head))

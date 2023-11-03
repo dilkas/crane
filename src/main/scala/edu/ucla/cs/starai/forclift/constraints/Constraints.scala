@@ -301,6 +301,12 @@ final case class Constraints(
 
   // ========================= OUTPUT =========================================
 
+  def toFastWfomc(nameSpace: VarNameSpace) = {
+    val ineqConstrStr = ineqConstrs.toFastWfomc(nameSpace, """ != """)
+    val elemConstrStr = elemConstrs.toString(nameSpace)
+    List(ineqConstrStr, elemConstrStr).filter { _.nonEmpty }.mkString(" & ")
+  }
+
   def toLatex(nameSpace: VarNameSpace, showRootDomains: Boolean = false) = {
     val ineqConstrStr = ineqConstrs.toString(nameSpace, """ \neq """)
     val elemConstrStr =

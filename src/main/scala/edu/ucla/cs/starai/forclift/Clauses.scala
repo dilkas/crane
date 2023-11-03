@@ -883,6 +883,20 @@ class Clause(
 
   // ========================= OUTPUT =========================================
 
+  lazy val toFastWfomc: String = {
+    val nameSpace = new VarNameSpace
+    val literalStr =
+      if (posLits.isEmpty && negLits.isEmpty) "False"
+      else
+        (posLits.map { _.toFastWfomc(nameSpace) } union negLits.map {
+          "~" + _.toFastWfomc(nameSpace)
+        }).mkString(" | ")
+    List(constrs.toFastWfomc(nameSpace), literalStr)
+      .filter { _.nonEmpty }
+      .map { "(" + _ + ")" }
+      .mkString("(", " ==> ", ")")
+  }
+
   def toLatex(showRootDomains: Boolean = false) = {
     val nameSpace = new VarNameSpace
     val literalStr =

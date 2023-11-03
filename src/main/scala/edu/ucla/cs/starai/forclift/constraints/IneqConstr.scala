@@ -99,12 +99,11 @@ final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
     return false;
   }
 
-  lazy val constants: Set[Constant] = flatMap {
-    case (_, args) =>
-      args.flatMap {
-        case c: Constant => List(c)
-        case _           => List()
-      }
+  lazy val constants: Set[Constant] = flatMap { case (_, args) =>
+    args.flatMap {
+      case c: Constant => List(c)
+      case _           => List()
+    }
   }.toSet
 
   def differentFromTerms(elements: Set[Term]): Set[Term] = {
@@ -172,16 +171,15 @@ final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
   }
 
   def removeRedundant(elemConstr: ElemConstr): IneqConstr = {
-    val removedValues = self.map {
-      case (keyVar, terms) =>
-        val keyVarDomain = elemConstr(keyVar)
-        val nonRedundantTerms = terms.filter {
-          _ match {
-            case v: Var => !keyVarDomain.disjoint(elemConstr(v))
-            case _      => true
-          }
+    val removedValues = self.map { case (keyVar, terms) =>
+      val keyVarDomain = elemConstr(keyVar)
+      val nonRedundantTerms = terms.filter {
+        _ match {
+          case v: Var => !keyVarDomain.disjoint(elemConstr(v))
+          case _      => true
         }
-        (keyVar, nonRedundantTerms)
+      }
+      (keyVar, nonRedundantTerms)
     }
     val nonEmptyResult = removedValues.filter { case (_, v) => v.nonEmpty }
     new IneqConstr(map2MultiMap(nonEmptyResult))
@@ -201,7 +199,7 @@ final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
       (variable, substSet)
     }
     var clone: MultiMap[Var, Term] = new MultiMap(tuples1)
-    //substitute keys
+    // substitute keys
     for (variable <- this.keySet) {
       val subst = variable.substitute(substitution)
       if (subst != variable) {
@@ -226,22 +224,24 @@ final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
   override def toString = toString(ToStringNameSpace)
 
   def toString(nameSpace: NameSpace[Var, String], ineqSymbol: String = "≠") = {
-    flatMap {
-      case (v, args) =>
-        val vName = nameSpace.getName(v)
-        //order to remove X!=Y and Y!=X constraints
-        val orderedArgs = args.filter { a =>
-          !a.isInstanceOf[Var] || a.hashCode > v.hashCode
+    flatMap { case (v, args) =>
+      val vName = nameSpace.getName(v)
+      // order to remove X!=Y and Y!=X constraints
+      val orderedArgs = args.filter { a =>
+        !a.isInstanceOf[Var] || a.hashCode > v.hashCode
+      }
+      orderedArgs.map { arg =>
+        val argName = arg match {
+          case variable: Var      => nameSpace.getName(variable)
+          case constant: Constant => constant.toString
         }
-        orderedArgs.map { arg =>
-          val argName = arg match {
-            case variable: Var      => nameSpace.getName(variable)
-            case constant: Constant => constant.toString
-          }
-          vName + ineqSymbol + argName
-        }
+        vName + ineqSymbol + argName
+      }
     }.toArray.sorted.mkString(", ")
   }
+
+  def toFastWfomc(namespace: NameSpace[Var, String], ineqSymbol: String = "≠") =
+    toString(namespace, ineqSymbol).toLowerCase
 
   def variables = keySet
 

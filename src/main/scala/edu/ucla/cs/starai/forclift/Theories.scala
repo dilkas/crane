@@ -54,6 +54,8 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
     }
   }
 
+  def toFastWfomc = clauses.map { _.toFastWfomc }.mkString(" & ")
+
   override def +(clause: Clause) = new CNF(clause :: clauses)
 
   def isTautology = clauses.isEmpty
