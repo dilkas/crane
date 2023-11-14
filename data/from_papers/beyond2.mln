@@ -1,0 +1,7 @@
+// Kuusisto and Lutz, 2018
+
+a = {1,...,3}
+
+R(a,a)
+
+exist x forall y forall z R(y, z) => (x=y v x=z).

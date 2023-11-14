@@ -1,0 +1,5 @@
+a = {1,...,3}
+
+Heads(a)
+
+exist x Heads(x).

@@ -1,0 +1,8 @@
+a = {1,...,3}
+b = {1,...,3}
+
+U(a)
+V(b)
+W(b)
+
+forall x exist y U(x) v V(y) v W(y).

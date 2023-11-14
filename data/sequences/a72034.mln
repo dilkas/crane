@@ -1,0 +1,12 @@
+a = {1,...,3}
+b = {1,...,3}
+
+U(a)
+B(a, b)
+
+U(x) v B(x, y).
+
+exist x exist y !B(x, y).
+
+forall x exist y !B(y, x).
+!B(y, x) ^ !B(z, x) => y=z.

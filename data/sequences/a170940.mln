@@ -1,0 +1,8 @@
+a = {1,...,3}
+
+U(a)
+V(a)
+
+exist x U(x) v V(x).
+exist x !U(x).
+exist x U(x) v !V(x).

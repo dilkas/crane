@@ -1,0 +1,9 @@
+a = {1,...,3}
+
+U(a)
+V(a)
+B(a, a)
+
+!B(x, x).
+forall x exist y B(x, y) v U(x) v V(y).
+!B(x, y) v B(x, x).

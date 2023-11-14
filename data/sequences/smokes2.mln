@@ -1,0 +1,6 @@
+a = {1,...,3}
+
+Smokes(a)
+Friends(a, a)
+
+Smokes(x) ^ Friends(x, y) => Smokes(y).

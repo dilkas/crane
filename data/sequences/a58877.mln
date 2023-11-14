@@ -1,0 +1,11 @@
+a = {1,...,3}
+
+U(a)
+V(a)
+
+U(x) v V(x).
+
+exist x !U(x).
+
+exist x !V(x).
+!V(x) ^ !V(y) => x=y.
