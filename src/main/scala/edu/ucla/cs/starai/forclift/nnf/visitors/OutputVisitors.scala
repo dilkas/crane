@@ -30,6 +30,7 @@ import System._
 import java.io._
 import scala.util.matching.Regex
 
+// TODO (Paulius): obsolete?
 /** Constructs a list of Strings, where each String is a definition of a
   * function in LaTeX syntax.
   *
@@ -366,9 +367,9 @@ object LatexOutputVisitor {
 
 }
 
-/** ===========================================================================
+/** \===========================================================================
   * New Code : Simplification using Wolfram Engine
-  * ===========================================================================
+  * \===========================================================================
   */
 
 class SimplifyUsingWolfram(
@@ -598,28 +599,12 @@ class SimplifyUsingWolfram(
       leaf: SmoothingNode,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    println(
-      "Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail."
-    )
-    if (leaf.clause.constrs.ineqConstrs.isEmpty) {
-      val (variableNames, predicateWeights) = params
-      val weight = predicateWeights(
-        leaf.clause.predicate
-      ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
-      (
-        s"($weight)^(" + leaf.clause.literalVariables
-          .map { case variable =>
-            variableNames(leaf.clause.domainsFor(Set(variable)).head)
-          }
-          .mkString(" * ") + ")",
-        Nil
-      )
-      /*} else if (leaf.clause.domains.size == 1 && leaf.clause.constrs.constants.isEmpty && leaf.clause.allVarsAreDifferent) {*/
-    } else {
-      throw new IllegalStateException(
-        "This type of smoothing node is not supported"
-      )
-    }
+    val (variableNames, predicateWeights) = params
+    val weight = predicateWeights(
+      leaf.clause.predicate
+    ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
+    val nbGroundings = leaf.clause.nbGroundings(variableNames)
+    (s"($weight)^($nbGroundings)", Nil)
   }
 
   protected def visitTrue(
