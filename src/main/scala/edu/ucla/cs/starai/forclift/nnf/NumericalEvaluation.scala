@@ -16,7 +16,8 @@ import edu.ucla.cs.starai.forclift.Domain
 
 object NumericalEvaluation extends LazyLogging {
   val CPP_COMPILER: String = "g++"
-  val COMPILE_FLAGS: Array[String] = Array("-w", "-std=c++17")
+  // val COMPILE_FLAGS: Array[String] = Array("-w", "-std=c++17")
+  val COMPILE_FLAGS: Array[String] = Array("-w", "-g", "-Wall", "-std=c++17")
   val LINK_FLAGS: Array[String] = Array("-lgmpxx", "-lgmp")
   val OBJ_FILE_PATH: String = "bin/test.exe"
   val CODE_FILE_PATH: String = "bin/test.cpp"

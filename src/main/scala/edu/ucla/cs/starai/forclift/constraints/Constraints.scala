@@ -304,7 +304,11 @@ final case class Constraints(
     while (dims.nonEmpty) {
       val dim = dims.head
       val domainSize: String = dim._3.symbolicSize(variableNames, dim._1)
-      nbGroundings += s"($domainSize - ${dim._2})*"
+      if (dim._2 == 0) {
+        nbGroundings += domainSize + "*"
+      } else {
+        nbGroundings += s"($domainSize - ${dim._2})*"
+      }
       dims = dims.tail
     }
     if (nbGroundings == "") {

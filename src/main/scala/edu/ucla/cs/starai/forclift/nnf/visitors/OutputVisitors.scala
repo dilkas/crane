@@ -30,7 +30,9 @@ import System._
 import java.io._
 import scala.util.matching.Regex
 
-// TODO (Paulius): obsolete?
+// TODO (Paulius): update the description below. visitUnitLeaf needs to be
+// updated as well.
+
 /** Constructs a list of Strings, where each String is a definition of a
   * function in LaTeX syntax.
   *
@@ -271,27 +273,12 @@ class LatexOutputVisitor(
       leaf: SmoothingNode,
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
-    println(
-      "Warning: the implementation that determines the algebraic expression of a smoothing node is incomplete and may produce incorrect expressions or fail."
-    )
-    if (leaf.clause.constrs.ineqConstrs.isEmpty) {
-      val (variableNames, predicateWeights) = params
-      val weight = predicateWeights(
-        leaf.clause.predicate
-      ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
-      (
-        s"($weight)^{" + leaf.clause.literalVariables
-          .map { case variable =>
-            variableNames(leaf.clause.domainsFor(Set(variable)).head)
-          }
-          .mkString(" \\times ") + "}",
-        Nil
-      )
-    } else {
-      throw new IllegalStateException(
-        "This type of smoothing node is not supported"
-      )
-    }
+    val (variableNames, predicateWeights) = params
+    val weight = predicateWeights(
+      leaf.clause.predicate
+    ).posWDouble + predicateWeights(leaf.clause.predicate).negWDouble
+    val nbGroundings = leaf.clause.nbGroundings(variableNames)
+    (s"($weight)^{$nbGroundings}", Nil)
   }
 
   protected def visitTrue(

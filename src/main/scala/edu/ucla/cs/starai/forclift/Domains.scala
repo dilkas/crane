@@ -215,9 +215,11 @@ class RootDomain(
   def symbolicSize(
       variableNames: Map[Domain, String],
       excluded: Set[Constant]
-  ): String = {
-    return s"(${variableNames(this)} - ${excluded.size})"
-  }
+  ): String = if (excluded.isEmpty) {
+      variableNames(this)
+    } else {
+      s"(${variableNames(this)} - ${excluded.size})"
+    }
 
   def constants(domainSizes: DomainSizes): List[Constant] = {
     domainSizes.constants(this)
@@ -364,7 +366,11 @@ abstract class SubDomain(
       "Subdomains always have the same minimal set of excluded constants"
     )
     val nbExtraExcluded = excluded.size - excludedConstants.size
-    s"(${variableNames(this)} - $nbExtraExcluded)"
+    if (nbExtraExcluded == 0) {
+      variableNames(this)
+    } else {
+      s"(${variableNames(this)} - $nbExtraExcluded)"
+    }
   }
 
   override def toString = {
