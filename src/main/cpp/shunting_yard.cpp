@@ -25,12 +25,19 @@
 
 using namespace std;
 
-enum class exp_unit_type { Operator, Integer, FuncCall, Variable, None };
+// TODO (Paulius): two classes and a bunch of functions. Can they be
+// reorganised in a better way?
+
+// TODO (Paulius): fix the function name formatting
+
+// TODO (Paulius): move into the Token class. Instead of branching on
+// TokenType, use inheritance.
+enum class TokenType { kNone, kOperator, kInteger, kFunctionCall, kVariable };
 
 class Token;
 
 ostream &operator<<(ostream &s, Token e);
-ostream &operator<<(ostream &s, exp_unit_type e);
+ostream &operator<<(ostream &s, TokenType e);
 ostream &operator<<(ostream &s, list<Token> e);
 
 vector<Token> Tokenize(string exp_str);
@@ -39,11 +46,11 @@ string expression_to_string(vector<Token> exp,
 string expression_to_string(vector<Token> exp);
 string get_function_name(Token &e);
 
-class FuncCall {
+class FunctionCall {
 public:
   string func_name;
   vector<vector<Token>> func_args;
-  FuncCall(string call_str) {
+  FunctionCall(string call_str) {
     int num_open_brack = -1;
     int arg_start = 0;
     for (unsigned i{0}; i < call_str.size(); i++) {
@@ -66,7 +73,7 @@ public:
     }
   }
 
-  FuncCall(const string &fname, const vector<vector<Token>> &fargs)
+  FunctionCall(const string &fname, const vector<vector<Token>> &fargs)
       : func_name{fname}, func_args{fargs} {}
 
   string toString(bool use_paren = false) {
@@ -81,7 +88,7 @@ public:
   string toCppString(vector<string> free_vars);
 };
 
-ostream &operator<<(ostream &s, FuncCall f) {
+ostream &operator<<(ostream &s, FunctionCall f) {
   string arg_str = "";
   for (auto arg : f.func_args)
     arg_str += expression_to_string(arg) + ",";
@@ -93,57 +100,57 @@ class Token {
 protected:
   int _value = 0;
   char _op = '\0';
-  FuncCall *_func_call = NULL;
+  FunctionCall *_func_call = NULL;
   string _var = "";
 
 public:
-  exp_unit_type type = exp_unit_type::None;
+  TokenType type = TokenType::kNone;
   static const regex var_pattern;
 
-  Token(int val) : type{exp_unit_type::Integer}, _value{val} {}
-  Token(char op) : type{exp_unit_type::Operator}, _op{op} {}
+  Token(int val) : type{TokenType::kInteger}, _value{val} {}
+  Token(char op) : type{TokenType::kOperator}, _op{op} {}
   Token(string s) {
     if (regex_match(s, var_pattern)) {
-      type = exp_unit_type::Variable;
+      type = TokenType::kVariable;
       _var = s;
     } else {
-      type = exp_unit_type::FuncCall;
-      _func_call = new FuncCall{s};
+      type = TokenType::kFunctionCall;
+      _func_call = new FunctionCall{s};
     }
   }
-  Token(int val, char op, FuncCall *func_call, string var, exp_unit_type t)
+  Token(int val, char op, FunctionCall *func_call, string var, TokenType t)
       : _value{val}, _op{op}, _func_call{func_call}, _var{var}, type{t} {}
 
   void setValue(int x) {
-    type = exp_unit_type ::Integer;
+    type = TokenType::kInteger;
     _value = x;
   }
 
   void setOp(char o) {
-    type = exp_unit_type ::Operator;
+    type = TokenType::kOperator;
     _op = o;
   }
 
   int &value() {
-    if (type != exp_unit_type::Integer)
+    if (type != TokenType::kInteger)
       throw logic_error("Cannot access value for non-Integer token");
     return _value;
   }
 
   char &op() {
-    if (type != exp_unit_type::Operator)
+    if (type != TokenType::kOperator)
       throw logic_error("Cannot access value for non-Operator token");
     return _op;
   }
 
-  FuncCall &func() {
-    if (type != exp_unit_type ::FuncCall)
-      throw logic_error("Cannot access value for non-FuncCall token");
+  FunctionCall &func() {
+    if (type != TokenType::kFunctionCall)
+      throw logic_error("Cannot access value for non-FunctionCall token");
     return *_func_call;
   }
 
   string &var() {
-    if (type != exp_unit_type::Variable)
+    if (type != TokenType::kVariable)
       throw logic_error("Cannot access var for non-Variable token");
     return _var;
   }
@@ -154,10 +161,9 @@ public:
 
   // returns true if op1 has >= precedence than op2
   static bool comparePrecedence(Token op1, Token op2) {
-    if (op1.type != exp_unit_type::Operator ||
-        op2.type != exp_unit_type::Operator) {
+    if (op1.type != TokenType::kOperator || op2.type != TokenType::kOperator) {
       throw logic_error("Invalid operand types, can only compare precedence of "
-                        "operators with type exp_unit_type :: Operator");
+                        "operators with type TokenType::kOperator");
     }
     return (operator_precedence_map.at(op1.op()) >=
             operator_precedence_map.at(op2.op()));
@@ -167,16 +173,16 @@ public:
     return e.func().toString();
   }) {
     switch (type) {
-    case exp_unit_type ::Integer: {
+    case TokenType::kInteger: {
       return to_string(value());
     }
-    case exp_unit_type ::Operator: {
+    case TokenType::kOperator: {
       return string(1, op());
     }
-    case exp_unit_type ::FuncCall: {
+    case TokenType::kFunctionCall: {
       return get_func_call(*this);
     }
-    case exp_unit_type ::Variable: {
+    case TokenType::kVariable: {
       return var();
     }
     default: {
@@ -188,7 +194,7 @@ public:
   Token(const Token &e)
       : type{e.type}, _value{e._value}, _op{e._op}, _var{e._var} {
     if (e._func_call)
-      _func_call = new FuncCall(*e._func_call);
+      _func_call = new FunctionCall(*e._func_call);
   }
 
   Token operator=(const Token &e) {
@@ -198,18 +204,18 @@ public:
     _var = e._var;
     delete _func_call;
     if (e._func_call)
-      _func_call = new FuncCall(*e._func_call);
+      _func_call = new FunctionCall(*e._func_call);
     return *this;
   }
 
   ~Token() { delete _func_call; }
 };
 
-const map<char, int> Token ::operator_precedence_map{
+const map<char, int> Token::operator_precedence_map{
     {'^', 4}, {'*', 3}, {'/', 3}, {'+', 2}, {'-', 2}, {'(', 1}};
-const regex Token ::var_pattern{"[a-zA-Z][a-zA-Z0-9]*"};
+const regex Token::var_pattern{"[a-zA-Z][a-zA-Z0-9]*"};
 
-string FuncCall ::toCppString(vector<string> free_vars) {
+string FunctionCall::toCppString(vector<string> free_vars) {
   if (func_name == "Sum") {
     stringstream lambda;
     lambda << "([";
@@ -256,19 +262,19 @@ string FuncCall ::toCppString(vector<string> free_vars) {
 
 ostream &operator<<(ostream &s, Token e) {
   switch (e.type) {
-  case exp_unit_type ::Integer: {
+  case TokenType::kInteger: {
     s << e.value();
     break;
   }
-  case exp_unit_type ::Operator: {
+  case TokenType::kOperator: {
     s << e.op();
     break;
   }
-  case exp_unit_type ::FuncCall: {
+  case TokenType::kFunctionCall: {
     s << e.func();
     break;
   }
-  case exp_unit_type ::Variable: {
+  case TokenType::kVariable: {
     s << e.var();
     break;
   }
@@ -307,22 +313,22 @@ string expression_to_string(vector<Token> exp,
   return s;
 }
 
-ostream &operator<<(ostream &s, exp_unit_type e) {
+ostream &operator<<(ostream &s, TokenType e) {
   switch (e) {
-  case exp_unit_type ::Integer: {
+  case TokenType::kInteger: {
     s << "Integer";
     break;
   }
-  case exp_unit_type ::Operator: {
+  case TokenType::kOperator: {
     s << "Operator";
     break;
   }
-  case exp_unit_type ::FuncCall: {
-    s << "FuncCall";
+  case TokenType::kFunctionCall: {
+    s << "FunctionCall";
     break;
   }
-  case exp_unit_type ::Variable: {
-    s << "Variable";
+  case TokenType::kVariable: {
+    s << "kVariable";
     break;
   }
   }
@@ -339,15 +345,15 @@ vector<Token> shunting_yard(vector<Token> infix_exp, bool recursive = true) {
   postfix_exp.reserve(infix_exp.size());
   for (Token x : infix_exp) {
     switch (x.type) {
-    case exp_unit_type ::Integer: {
+    case TokenType::kInteger: {
       postfix_exp.push_back(x);
       break;
     }
-    case exp_unit_type ::Variable: {
+    case TokenType::kVariable: {
       postfix_exp.push_back(x);
       break;
     }
-    case exp_unit_type ::FuncCall: {
+    case TokenType::kFunctionCall: {
       Token new_unit{x};
       if (recursive) {
         for (auto &arg : new_unit.func().func_args) {
@@ -357,7 +363,7 @@ vector<Token> shunting_yard(vector<Token> infix_exp, bool recursive = true) {
       postfix_exp.push_back(new_unit);
       break;
     }
-    case exp_unit_type::Operator: {
+    case TokenType::kOperator: {
       if (operator_stack.empty() || x.op() == '(') {
         operator_stack.push(x);
       } else if (x.op() == ')') {
@@ -377,7 +383,7 @@ vector<Token> shunting_yard(vector<Token> infix_exp, bool recursive = true) {
     }
     default: {
       throw logic_error("Invalid expression containing element of type "
-                        "operator_unit_type :: None");
+                        "TokenType::kNone");
     }
     }
   }
@@ -394,15 +400,15 @@ vector<Token> handle_pow(vector<Token> exp, bool recursive = true) {
   stack<list<Token>> exp_stack;
   for (auto e : postfix_exp) {
     switch (e.type) {
-    case exp_unit_type ::Integer: {
+    case TokenType::kInteger: {
       exp_stack.push({e});
       break;
     }
-    case exp_unit_type ::Variable: {
+    case TokenType::kVariable: {
       exp_stack.push({e});
       break;
     }
-    case exp_unit_type ::Operator: {
+    case TokenType::kOperator: {
       list<Token> arg2 = exp_stack.top();
       exp_stack.pop();
       list<Token> arg1 = exp_stack.top();
@@ -474,16 +480,16 @@ vector<Token> handle_pow(vector<Token> exp, bool recursive = true) {
         break;
       }
       case '^': {
-        FuncCall *pow_func_call = new FuncCall{
+        FunctionCall *pow_func_call = new FunctionCall{
             "power", {{arg1.begin(), arg1.end()}, {arg2.begin(), arg2.end()}}};
-        res = {Token(0, '\0', pow_func_call, "", exp_unit_type ::FuncCall)};
+        res = {Token(0, '\0', pow_func_call, "", TokenType::kFunctionCall)};
         break;
       }
       }
       exp_stack.push({res});
       break;
     }
-    case exp_unit_type ::FuncCall: {
+    case TokenType::kFunctionCall: {
       Token new_unit{e};
       if (recursive) {
         for (auto &arg : new_unit.func().func_args) {
@@ -534,8 +540,9 @@ vector<Token> Tokenize(string exp_str) {
         exp.push_back({exp_str.substr(i, j - i + 1)});
         i = j;
       }
-    } else if (exp_str.at(i) == '-' && exp.size() == 0 &&
-               isdigit(exp_str.at(i + 1))) {
+    } else if (exp_str.at(i) == '-' &&
+               (exp.size() == 0 || (exp.back().type == TokenType::kOperator &&
+                                    exp.back().op() == '('))) {
       // unary minus
       unsigned j = i + 1;
       for (j; j < exp_str.size() && isdigit(exp_str.at(j)); j++)
@@ -550,17 +557,17 @@ vector<Token> Tokenize(string exp_str) {
 }
 
 int get_func_val(Token f) {
-  if (f.type != exp_unit_type ::FuncCall) {
+  if (f.type != TokenType::kFunctionCall) {
     throw invalid_argument(
-        "get_func_val accepts only exp_unit_type::FuncCall arguments");
+        "get_func_val accepts only TokenType::kFunctionCall arguments");
   }
   return 0;
 }
 
 int get_var_val(Token f) {
-  if (f.type != exp_unit_type ::Variable) {
+  if (f.type != TokenType::kVariable) {
     throw invalid_argument(
-        "get_func_val accepts only exp_unit_type::FuncCall arguments");
+        "get_func_val accepts only TokenType::kFunctionCall arguments");
   }
   return 0;
 }
@@ -571,15 +578,15 @@ int evaluateExpression(vector<Token> exp, function<int(Token)> get_var_val,
   stack<Token> eval_stack;
   for (auto e : exp) {
     switch (e.type) {
-    case exp_unit_type ::Integer: {
+    case TokenType::kInteger: {
       eval_stack.push(e);
       break;
     }
-    case exp_unit_type ::Variable: {
+    case TokenType::kVariable: {
       eval_stack.push({get_var_val(e)});
       break;
     }
-    case exp_unit_type ::Operator: {
+    case TokenType::kOperator: {
       int arg2 = eval_stack.top().value();
       eval_stack.pop();
       int arg1 = eval_stack.top().value();
@@ -610,7 +617,7 @@ int evaluateExpression(vector<Token> exp, function<int(Token)> get_var_val,
       eval_stack.push({res});
       break;
     }
-    case exp_unit_type ::FuncCall: {
+    case TokenType::kFunctionCall: {
       Token f{e};
       for (auto &arg : e.func().func_args) {
         int v = evaluateExpression(arg, get_var_val, get_func_val);
@@ -629,7 +636,7 @@ string get_function_name(Token &e) {
   bool base_func = true;
   name << e.func().func_name << "_";
   for (auto arg : e.func().func_args) {
-    if (arg.at(0).type == exp_unit_type ::Integer) {
+    if (arg.at(0).type == TokenType::kInteger) {
       name << to_string(arg.at(0).value());
       base_func = false;
     } else
@@ -646,7 +653,7 @@ string get_function_signature(Token &e, string func_ret_pref = "int",
   // get the argument list for the cpp code.
   string arg_list = "";
   for (auto arg : e.func().func_args)
-    if (arg.at(0).type == exp_unit_type ::Variable)
+    if (arg.at(0).type == TokenType::kVariable)
       arg_list += var_pref + " " + arg.at(0).var() + ", ";
   if (arg_list.size() != 0)
     arg_list = arg_list.substr(0, arg_list.size() - 2);
@@ -686,7 +693,7 @@ string generate_function_def(string eqn) {
   // find the maximum subtractor among the arguments in the rhs
   map<string, int> max_sub;
   for (auto arg : lhs.func().func_args) {
-    if (arg.at(0).type == exp_unit_type ::Variable) {
+    if (arg.at(0).type == TokenType::kVariable) {
       max_sub.insert({arg.at(0).var(), 0});
     }
   }
@@ -696,7 +703,7 @@ string generate_function_def(string eqn) {
     vector<Token> &arg_exp = *arg_stack.top();
     arg_stack.pop();
     for (Token &e : arg_exp) {
-      if (e.type == exp_unit_type ::FuncCall) {
+      if (e.type == TokenType::kFunctionCall) {
         if (e.func().func_name == "Binomial" || e.func().func_name == "power" ||
             e.func().func_name == "Sum") {
           for (vector<Token> &arg : e.func().func_args)
@@ -707,7 +714,7 @@ string generate_function_def(string eqn) {
           // finding the variable name in the argument
           string var_name;
           for (auto u : arg) {
-            if (u.type == exp_unit_type ::Variable) {
+            if (u.type == TokenType::kVariable) {
               var_name = u.var();
               break;
             }
@@ -730,7 +737,7 @@ string generate_function_def(string eqn) {
   // arguments
   vector<string> free_vars;
   for (vector<Token> &exp : lhs.func().func_args) {
-    if (exp.at(0).type == exp_unit_type ::Variable)
+    if (exp.at(0).type == TokenType::kVariable)
       free_vars.push_back(exp.at(0).var());
   }
   if (max_sub_vec.size()) {
@@ -772,7 +779,7 @@ string generate_function_def(string eqn) {
         Token transformed_e{e};
         for (unsigned j{0}; j < transformed_e.func().func_args.size(); j++) {
           if (transformed_e.func().func_args.at(j).at(0).type ==
-                  exp_unit_type ::Variable &&
+                  TokenType::kVariable &&
               transformed_e.func().func_args.at(j).at(0).var() ==
                   max_sub_vec.at(i).first) {
             transformed_e.func().func_args.at(j).at(0) = Token(int(sub));
