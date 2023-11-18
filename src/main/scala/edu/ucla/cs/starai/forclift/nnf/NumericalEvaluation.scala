@@ -14,15 +14,14 @@ import edu.ucla.cs.starai.forclift.inference.DomainSizes
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.Domain
 
+// TODO (Paulius): use the makefile or something similar
 object NumericalEvaluation extends LazyLogging {
   val CPP_COMPILER: String = "g++"
-  // val COMPILE_FLAGS: Array[String] = Array("-w", "-std=c++17")
   val COMPILE_FLAGS: Array[String] = Array("-w", "-g", "-Wall", "-std=c++17")
   val LINK_FLAGS: Array[String] = Array("-lgmpxx", "-lgmp")
   val OBJ_FILE_PATH: String = "bin/test.exe"
   val CODE_FILE_PATH: String = "bin/test.cpp"
-  val PARSER_BIN_PATH: String = "bin/shunting_yard.exe"
-  val PARSER_CODE_PATH: String = "src/main/cpp/shunting_yard.cpp"
+  val PARSER_BIN_PATH: String = "bin/shunting_yard"
   val IN_FILE_PATH: String = "bin/equations.in"
   var domains: List[Domain] = List()
 
@@ -37,28 +36,6 @@ object NumericalEvaluation extends LazyLogging {
       ) + "\n" + domainInfo + "\n"
     )
     buffered_in_file_writer.flush()
-
-    // compiling and running the parser
-    val parser_bin = new File(PARSER_BIN_PATH)
-    if (!parser_bin.exists() || !parser_bin.isFile) {
-      logger.info("Compiling the parser...")
-      val compile_cmd: Seq[String] =
-        Seq(CPP_COMPILER) ++ COMPILE_FLAGS.toSeq ++ Seq(
-          PARSER_CODE_PATH,
-          "-o",
-          PARSER_BIN_PATH
-        ) ++ LINK_FLAGS.toSeq
-      val compile_proc: ProcessBuilder =
-        Process(compile_cmd, Some(new java.io.File(".")))
-      val compile_out: ListBuffer[String] = ListBuffer()
-      val compile_err: ListBuffer[String] = ListBuffer()
-      compile_proc ! ExternalBinaries.stringLogger(compile_out, compile_err)
-      if (compile_err.size != 0) {
-        throw new Exception(
-          "Parser compile failed - \n" + compile_err.mkString("\n")
-        )
-      }
-    }
 
     // running the executable and storing its output
     val exec_cmd: Seq[String] = Seq(PARSER_BIN_PATH, IN_FILE_PATH)
