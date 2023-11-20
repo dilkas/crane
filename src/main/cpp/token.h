@@ -30,19 +30,16 @@ public:
   Token(char op) : type{TokenType::kOperator}, _op{op} {}
 
   Token(const Token &other)
-      : type(other.type), _value(other._value), _op(other._op),
+      : type(other.type), _op(other._op), _value(other._value),
         _var(other._var) {
-    FunctionCall *function_call =
-        (other._func_call.get() == nullptr)
-            ? nullptr
-            : new FunctionCall(other._func_call.get());
-    _func_call = std::unique_ptr<FunctionCall>(function_call);
+    if (other._func_call != nullptr)
+      _func_call = std::unique_ptr<FunctionCall>(other._func_call->Clone());
   }
 
   Token(int val) : type{TokenType::kInteger}, _value{val} {}
   Token(std::string);
   Token(int val, char op, FunctionCall *func_call, std::string var, TokenType t)
-      : _value{val}, _op{op}, _func_call{func_call}, _var{var}, type{t} {}
+      : type(t), _func_call{func_call}, _op{op}, _value{val}, _var{var} {}
 
   // ======================== FUNCTIONS ========================
 
@@ -59,8 +56,8 @@ public:
   int value() const;
   std::string var() const;
 
-  std::string toString(std::function<std::string(Token &)> get_func_call =
-                           [](Token &e) { return e.func().toString(); });
+  std::string ToString(std::function<std::string(Token &)> get_func_call =
+                           [](Token &e) { return e.func().ToString(); });
 
 protected:
   std::unique_ptr<FunctionCall> _func_call;

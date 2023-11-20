@@ -17,7 +17,7 @@ Token::Token(std::string s) {
     _var = s;
   } else {
     type = TokenType::kFunctionCall;
-    _func_call = std::make_unique<FunctionCall>(s);
+    _func_call = std::unique_ptr<FunctionCall>(FunctionCall::Create(s));
   }
 }
 
@@ -98,7 +98,7 @@ std::string Token::var() const {
   return _var;
 }
 
-std::string Token::toString(std::function<std::string(Token &)> get_func_call) {
+std::string Token::ToString(std::function<std::string(Token &)> get_func_call) {
   switch (type) {
   case TokenType::kInteger:
     return std::to_string(value());
@@ -163,6 +163,8 @@ std::ostream &operator<<(std::ostream &s, TokenType e) {
     s << "kVariable";
     break;
   }
+  default:
+    s << "Uninitialized";
   }
   return s;
 }

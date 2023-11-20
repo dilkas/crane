@@ -87,8 +87,8 @@ std::string generate_function_def(std::string eqn) {
          << rhs->ToString([free_vars](Token &e) {
               if (e.func().func_name == "Binomial" ||
                   e.func().func_name == "power" || e.func().func_name == "Sum")
-                return e.func().toCppString(free_vars);
-              return e.func().toString(true);
+                return e.func().ToCppString(free_vars);
+              return e.func().ToString(true);
             })
          << ";\n\t\t" << stored_val_loc
          << " = ret_val;\n\t\treturn ret_val;\n\t}\n";
@@ -96,8 +96,8 @@ std::string generate_function_def(std::string eqn) {
     code << "\tmpz_class ret_val = " << rhs->ToString([free_vars](Token &e) {
       if (e.func().func_name == "Binomial" || e.func().func_name == "power" ||
           e.func().func_name == "Sum")
-        return e.func().toCppString(free_vars);
-      return e.func().toString(true);
+        return e.func().ToCppString(free_vars);
+      return e.func().ToString(true);
     }) << ";\n\t"
          << stored_val_loc << " = ret_val;\n\treturn ret_val;\n";
   }
@@ -107,7 +107,7 @@ std::string generate_function_def(std::string eqn) {
     for (int sub = 0; sub < max_sub_vec.at(i).second; sub++) {
       code << "\telse if (" << max_sub_vec.at(i).first << " == " << sub << "){";
       code << "\n\t\treturn "
-           << lhs.toString([max_sub_vec, i, sub](const Token &e) {
+           << lhs.ToString([max_sub_vec, i, sub](const Token &e) {
                 Token transformed_e = e;
                 for (unsigned j = 0; j < transformed_e.func().func_args.size();
                      j++) {
@@ -199,7 +199,7 @@ generate_cpp_code_with_main(std::vector<std::string> equations,
        << "\tif (argc != " << domains.size() << " + 1) {" << std::endl
        << "\t\tstd::cerr << \"Please provide " << domains.size()
        << " arguments for the following domains (in this order): ";
-  for (int i = 0; i < domains.size(); i++) {
+  for (size_t i = 0; i < domains.size(); i++) {
     if (i != 0)
       code << ", ";
     code << domains.at(i);
@@ -224,13 +224,12 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   std::ifstream in_file{argv[1]};
-  int num_equations{0};
+  int num_equations = 0;
   in_file >> num_equations;
   std::vector<std::string> equations;
   equations.resize(num_equations);
-  for (unsigned i{0}; i < num_equations; i++) {
+  for (int i = 0; i < num_equations; i++)
     in_file >> equations.at(i);
-  }
 
   int num_domains;
   in_file >> num_domains;

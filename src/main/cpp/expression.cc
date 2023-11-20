@@ -48,7 +48,7 @@ Expression::Expression(const std::string &exp_str) {
                  tokens_.back().op() == '('))) {
       // negative integer
       unsigned j = i + 1;
-      for (j; j < exp_str.size() && isdigit(exp_str.at(j)); j++)
+      for (; j < exp_str.size() && isdigit(exp_str.at(j)); j++)
         ;
       tokens_.emplace_back(Token(stoi(exp_str.substr(i, j - i))));
       i = j - 1;
@@ -127,6 +127,8 @@ int Expression::Evaluate() {
       eval_stack.push({GetFunctionValue(f)});
       break;
     }
+    default:
+      throw std::logic_error("Uninitialized token");
     }
   }
   return eval_stack.top().value();
@@ -180,9 +182,8 @@ std::unique_ptr<Expression> Expression::HandlePower(bool recursive /*= true*/) {
         break;
       }
       case '^': {
-        FunctionCall *pow_func_call = new FunctionCall(
-            "power", std::unique_ptr<Expression>(new Expression(arg1)),
-            std::unique_ptr<Expression>(new Expression(arg2)));
+        FunctionCall *pow_func_call = new OtherFunctionCall(
+            "power", {new Expression(arg1), new Expression(arg2)});
         exp_stack.push(
             {{Token(0, '\0', pow_func_call, "", TokenType::kFunctionCall)}});
         break;
@@ -198,6 +199,8 @@ std::unique_ptr<Expression> Expression::HandlePower(bool recursive /*= true*/) {
       exp_stack.push({new_unit});
       break;
     }
+    default:
+      throw std::logic_error("Uninitialized token");
     }
   }
   return std::unique_ptr<Expression>(new Expression(exp_stack.top()));
@@ -291,7 +294,7 @@ Expression::ShuntingYard(bool recursive /*= true*/) {
 std::string Expression::ToString() const {
   std::string s;
   for (auto e : tokens_)
-    s += e.toString();
+    s += e.ToString();
   return s;
 }
 
@@ -299,7 +302,7 @@ std::string
 Expression::ToString(std::function<std::string(Token &)> get_func_call) {
   std::string s;
   for (auto e : tokens_)
-    s += e.toString(get_func_call);
+    s += e.ToString(get_func_call);
   return s;
 }
 
