@@ -3,72 +3,136 @@
 
 #include <list>
 #include <map>
+#include <memory>
 #include <regex>
+#include <stack>
 #include <string>
 
-#include "function_call.h"
-
-// TODO (Paulius): need subclasses
-
-// TODO (Paulius): move into the Token class. Instead of branching on
-// TokenType, use inheritance.
-enum class TokenType { kNone, kOperator, kInteger, kFunctionCall, kVariable };
+class Expression;
 
 class Token {
 public:
-  // ======================== DATA ========================
+  Token() {}
+  virtual std::unique_ptr<Token> Clone() const = 0;
+  static std::unique_ptr<Token> Create(char);
+  static std::unique_ptr<Token> Create(int);
+  static std::unique_ptr<Token> Create(const std::string &);
+
+  virtual void Evaluate(std::stack<std::unique_ptr<Token>> &) const = 0;
+
+  virtual std::pair<std::string, int> GetFunctionPair() const {
+    throw new std::logic_error("This token is not a function");
+  }
+
+  virtual std::string GetFunctionSignature(std::string = "int",
+                                           std::string = "int",
+                                           std::string = ";") const {
+    throw new std::logic_error("This token is not a function");
+  }
+
+  virtual int GetInteger() const {
+    throw new std::logic_error("This token is not an integer");
+  }
+
+  virtual char GetOperator() const { return '\0'; }
+  virtual std::string GetVariable() const { return ""; }
+  virtual void HandlePower(std::stack<std::list<std::unique_ptr<Token>>> &,
+                           bool) const;
+
+  virtual bool HigherPrecedence(const Token *other) const {
+    throw std::logic_error("Invalid operand types, can only compare precedence "
+                           "of operator tokens");
+  }
+
+  virtual void MaxDecrementPerVariable(std::stack<Expression const *> &,
+                                       std::map<std::string, int> &) const {}
+  virtual void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
+                            bool) const;
+
+  // NOTE: cannot be passed by reference
+  virtual std::string ToCppString(std::vector<std::string>) const {
+    throw new std::logic_error("This token is not a function");
+  }
+
+  virtual std::string ToFunctionName() const { return "x"; }
+
+  std::string ToString() const {
+    return ToString([](const Token &t) { return t.ToString(); });
+  }
+
+  virtual std::string
+      ToString(std::function<std::string(const Token &)>) const = 0;
+};
+
+class IntegerToken : public Token {
+public:
+  IntegerToken(int value) : value_(value) {}
+  std::unique_ptr<Token> Clone() const { return Token::Create(value_); }
+
+  void Evaluate(std::stack<std::unique_ptr<Token>> &eval_stack) const override {
+    eval_stack.push(std::unique_ptr<Token>(new IntegerToken(value_)));
+  }
+
+  int GetInteger() const override { return value_; }
+  std::string ToFunctionName() const override { return std::to_string(value_); }
+
+  std::string
+  ToString(std::function<std::string(const Token &)>) const override {
+    return std::to_string(value_);
+  }
+
+private:
+  int value_;
+};
+
+class OperatorToken : public Token {
+public:
+  OperatorToken(char value) : value_(value) {}
+  std::unique_ptr<Token> Clone() const { return Token::Create(value_); }
+  void Evaluate(std::stack<std::unique_ptr<Token>> &) const override;
+  char GetOperator() const override { return value_; }
+  void HandlePower(std::stack<std::list<std::unique_ptr<Token>>> &,
+                   bool) const override;
+  void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
+                    bool) const override;
+
+  std::string
+  ToString(std::function<std::string(const Token &)>) const override {
+    return std::string(1, value_);
+  }
+
+  /** Returns true if op1 has >= precedence than op2 */
+  bool HigherPrecedence(const Token *) const override;
+
+private:
+  char value_;
 
   /** Stores the operator precedence values, higher precedence means more value
    * in the map */
-  static const std::map<char, int> operator_precedence_map;
-
-  TokenType type;
-  static const std::regex var_pattern;
-
-  // ======================== CONSTRUCTORS ========================
-
-  Token(char op) : type{TokenType::kOperator}, _op{op} {}
-
-  Token(const Token &other)
-      : type(other.type), _op(other._op), _value(other._value),
-        _var(other._var) {
-    if (other._func_call != nullptr)
-      _func_call = std::unique_ptr<FunctionCall>(other._func_call->Clone());
-  }
-
-  Token(int val) : type{TokenType::kInteger}, _value{val} {}
-  Token(std::string);
-  Token(int val, char op, FunctionCall *func_call, std::string var, TokenType t)
-      : type(t), _func_call{func_call}, _op{op}, _value{val}, _var{var} {}
-
-  // ======================== FUNCTIONS ========================
-
-  /** Returns true if op1 has >= precedence than op2 */
-  static bool comparePrecedence(Token op1, Token op2);
-
-  std::string GetFunctionName() const;
-  std::string GetFunctionSignature(std::string = "int", std::string = "int",
-                                   std::string = ";") const;
-  void setOp(char o);
-  void setValue(int x);
-  FunctionCall &func() const;
-  char op() const;
-  int value() const;
-  std::string var() const;
-
-  std::string ToString(std::function<std::string(Token &)> get_func_call =
-                           [](Token &e) { return e.func().ToString(); });
-
-protected:
-  std::unique_ptr<FunctionCall> _func_call;
-  char _op = '\0';
-  int _value = 0;
-  std::string _var = "";
+  static const std::map<char, int> operator_precedence_map_;
 };
 
-// TODO (Paulius): friend functions or not (across all the files)?
-std::ostream &operator<<(std::ostream &s, const Token &e);
-std::ostream &operator<<(std::ostream &s, const std::list<Token> &e);
-std::ostream &operator<<(std::ostream &s, TokenType e);
+class VariableToken : public Token {
+public:
+  VariableToken(const std::string &value) : value_(value) {}
+
+  std::unique_ptr<Token> Clone() const {
+    return std::unique_ptr<Token>(new VariableToken(value_));
+  }
+
+  void Evaluate(std::stack<std::unique_ptr<Token>> &eval_stack) const override {
+    eval_stack.push(Token::Create(0));
+  }
+
+  std::string GetVariable() const override { return value_; }
+
+  std::string
+  ToString(std::function<std::string(const Token &)>) const override {
+    return value_;
+  }
+
+private:
+  std::string value_;
+};
 
 #endif // TOKEN_H_

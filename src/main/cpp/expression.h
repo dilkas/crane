@@ -20,12 +20,23 @@
 class Expression {
 public:
   Expression() = default;
-  Expression(Expression *other) : tokens_(other->tokens_) {}
+  Expression(Expression *other) : tokens_(std::move(other->tokens_)) {}
   Expression(const std::string &);
-  Expression(Token token) : tokens_{token} {};
-  Expression(std::list<Token> tokens)
-      : tokens_{tokens.begin(), tokens.end()} {};
-  Expression(std::vector<Token> tokens) : tokens_{tokens} {};
+
+  Expression(std::unique_ptr<Token> token) {
+    tokens_.push_back(std::move(token));
+  }
+
+  // NOTE: cannot be passed by reference
+  Expression(std::list<std::unique_ptr<Token>>);
+
+  // NOTE: cannot be passed by reference
+  Expression(std::vector<std::unique_ptr<Token>> tokens)
+      : tokens_(std::move(tokens)){};
+
+  void AddToken(std::unique_ptr<Token> token) {
+    tokens_.push_back(std::move(token));
+  }
 
   /** Evaluates an expression in the postfix notation. */
   int Evaluate();
@@ -33,8 +44,8 @@ public:
   /** Returns "" in the case of no variables. */
   std::string FirstVariable() const;
 
-  Token Front() const { return tokens_.front(); }
-  void SetFront(int value) { tokens_.front().setValue(value); }
+  const Token *Front() const { return tokens_.front().get(); }
+  void SetFront(int value) { tokens_[0] = Token::Create(value); }
 
   /** Converts exponent from infix notation (a^b) to the power(a,b) notation. */
   std::unique_ptr<Expression> HandlePower(bool = true);
@@ -46,14 +57,16 @@ public:
    *
    *  NOTE: Assumes left to right associativity of all operators.
    */
-  std::unique_ptr<Expression> ShuntingYard(bool = true);
+  virtual std::unique_ptr<Expression> ShuntingYard(bool = true) const;
 
-  std::string ToString() const;
-  std::string ToString(std::function<std::string(Token &)>);
-  friend std::ostream &operator<<(std::ostream &, Expression);
+  std::string ToString() const {
+    return ToString([](const Token &t) { return t.ToString(); });
+  }
+
+  std::string ToString(std::function<std::string(const Token &)>) const;
 
 private:
-  std::vector<Token> tokens_;
+  std::vector<std::unique_ptr<Token>> tokens_;
 };
 
 #endif // EXPRESSION_H_

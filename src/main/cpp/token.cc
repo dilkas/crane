@@ -1,170 +1,140 @@
-#include "expression.h"
 #include "token.h"
+
+#include <cmath>
 #include <sstream>
 
-// ======================== DATA ========================
+#include "expression.h"
+#include "function_call.h"
 
-const std::map<char, int> Token::operator_precedence_map{
+std::unique_ptr<Token> Token::Create(char value) {
+  return std::unique_ptr<Token>(new OperatorToken(value));
+}
+
+std::unique_ptr<Token> Token::Create(int value) {
+  return std::unique_ptr<Token>(new IntegerToken(value));
+}
+
+std::unique_ptr<Token> Token::Create(const std::string &value) {
+  if (std::regex_match(value, std::regex("[a-zA-Z][a-zA-Z0-9]*")))
+    return std::unique_ptr<Token>(new VariableToken(value));
+  return std::unique_ptr<Token>(FunctionCall::Create(value));
+}
+
+void Token::HandlePower(
+    std::stack<std::list<std::unique_ptr<Token>>> &exp_stack, bool) const {
+  std::list<std::unique_ptr<Token>> list;
+  list.push_back(std::move(Clone()));
+  exp_stack.emplace(std::move(list));
+}
+
+void Token::ShuntingYard(std::stack<std::unique_ptr<Token>> &operator_stack,
+                         Expression *postfix_exp, bool recursive) const {
+  postfix_exp->AddToken(Clone());
+}
+
+const std::map<char, int> OperatorToken::operator_precedence_map_{
     {'^', 4}, {'*', 3}, {'/', 3}, {'+', 2}, {'-', 2}, {'(', 1}};
 
-const std::regex Token::var_pattern{"[a-zA-Z][a-zA-Z0-9]*"};
+void OperatorToken::Evaluate(
+    std::stack<std::unique_ptr<Token>> &eval_stack) const {
+  int arg2 = eval_stack.top()->GetInteger();
+  eval_stack.pop();
+  int arg1 = eval_stack.top()->GetInteger();
+  eval_stack.pop();
+  int res = 0;
+  switch (value_) {
+  case '+': {
+    res = arg1 + arg2;
+    break;
+  }
+  case '-': {
+    res = arg1 - arg2;
+    break;
+  }
+  case '*': {
+    res = arg1 * arg2;
+    break;
+  }
+  case '/': {
+    res = arg1 / arg2;
+    break;
+  }
+  case '^': {
+    res = round(pow(arg1, arg2));
+    break;
+  }
+  default:
+    throw new std::logic_error("Invalid operator");
+  }
+  eval_stack.push(Token::Create(res));
+}
 
-// ======================== CONSTRUCTORS ========================
+void OperatorToken::HandlePower(
+    std::stack<std::list<std::unique_ptr<Token>>> &exp_stack, bool) const {
+  std::list<std::unique_ptr<Token>> arg2 = std::move(exp_stack.top());
+  exp_stack.pop();
+  std::list<std::unique_ptr<Token>> arg1 = std::move(exp_stack.top());
+  exp_stack.pop();
+  std::list<std::unique_ptr<Token>> res;
+  switch (value_) {
+  case '+':
+  case '-':
+  case '*':
+  case '/': {
+    bool b1 = (arg1.size() > 1);
+    bool b2 = (arg2.size() > 1);
+    if (b1)
+      res.push_back(Token::Create('('));
+    res.splice(res.end(), arg1);
+    if (b1)
+      res.push_back(Token::Create(')'));
+    res.push_back(Clone());
+    if (b2)
+      res.push_back(Token::Create('('));
+    res.splice(res.end(), arg2);
+    if (b2)
+      res.push_back(Token::Create(')'));
+    exp_stack.push(std::move(res));
+    break;
+  }
+  case '^': {
+    std::list<std::unique_ptr<Token>> list;
+    list.push_back(std::move(std::unique_ptr<Token>(
+        new OtherFunctionCall("power", {new Expression(std::move(arg1)),
+                                        new Expression(std::move(arg2))}))));
+    exp_stack.push(std::move(list));
+    break;
+  }
+  default:
+    throw new std::logic_error("Invalid operator");
+  }
+}
 
-Token::Token(std::string s) {
-  if (std::regex_match(s, var_pattern)) {
-    type = TokenType::kVariable;
-    _var = s;
+bool OperatorToken::HigherPrecedence(const Token *other) const {
+  auto op = dynamic_cast<const OperatorToken *>(other);
+  if (op == nullptr)
+    throw std::logic_error("Invalid operand types, can only compare precedence "
+                           "of operator tokens");
+  return operator_precedence_map_.at(value_) >=
+         operator_precedence_map_.at(op->value_);
+}
+
+void OperatorToken::ShuntingYard(
+    std::stack<std::unique_ptr<Token>> &operator_stack, Expression *postfix_exp,
+    bool recursive) const {
+  if (operator_stack.empty() || value_ == '(') {
+    operator_stack.push(Clone());
+  } else if (value_ == ')') {
+    while (operator_stack.top()->GetOperator() != '(') {
+      postfix_exp->AddToken(std::move(operator_stack.top()));
+      operator_stack.pop();
+    }
+    operator_stack.pop();
+  } else if (operator_stack.top()->HigherPrecedence(this)) {
+    postfix_exp->AddToken(std::move(operator_stack.top()));
+    operator_stack.pop();
+    operator_stack.push(Clone());
   } else {
-    type = TokenType::kFunctionCall;
-    _func_call = std::unique_ptr<FunctionCall>(FunctionCall::Create(s));
+    operator_stack.push(Clone());
   }
-}
-
-// ======================== FUNCTIONS ========================
-
-bool Token::comparePrecedence(Token op1, Token op2) {
-  if (op1.type != TokenType::kOperator || op2.type != TokenType::kOperator)
-    throw std::logic_error(
-        "Invalid operand types, can only compare precedence of "
-        "operators with type TokenType::kOperator");
-  return (operator_precedence_map.at(op1.op()) >=
-          operator_precedence_map.at(op2.op()));
-}
-
-std::string Token::GetFunctionName() const {
-  std::stringstream name;
-  bool base_func = true;
-  name << func().func_name << "_";
-  for (auto const &arg : func().func_args) {
-    if (arg->Front().type == TokenType::kInteger) {
-      name << std::to_string(arg->Front().value());
-      base_func = false;
-    } else
-      name << 'x';
-  }
-  if (base_func)
-    return func().func_name;
-  return name.str();
-}
-
-std::string Token::GetFunctionSignature(std::string func_ret_pref /*= "int"*/,
-                                        std::string var_pref /*= "int"*/,
-                                        std::string end /*= ";"*/) const {
-  std::stringstream signature;
-  // get the argument list for the cpp code.
-  std::string arg_list = "";
-  for (auto const &arg : func().func_args)
-    if (arg->Front().type == TokenType::kVariable)
-      arg_list += var_pref + " " + arg->Front().var() + ", ";
-  if (arg_list.size() != 0)
-    arg_list = arg_list.substr(0, arg_list.size() - 2);
-  signature << func_ret_pref << " " << GetFunctionName() << "(" << arg_list
-            << ")" << end;
-  return signature.str();
-}
-
-void Token::setOp(char o) {
-  type = TokenType::kOperator;
-  _op = o;
-}
-
-void Token::setValue(int x) {
-  type = TokenType::kInteger;
-  _value = x;
-}
-
-FunctionCall &Token::func() const {
-  if (type != TokenType::kFunctionCall)
-    throw std::logic_error("Cannot access value for non-FunctionCall token");
-  return *_func_call;
-}
-
-char Token::op() const {
-  if (type != TokenType::kOperator)
-    throw std::logic_error("Cannot access value for non-Operator token");
-  return _op;
-}
-
-int Token::value() const {
-  if (type != TokenType::kInteger)
-    throw std::logic_error("Cannot access value for non-Integer token");
-  return _value;
-}
-
-std::string Token::var() const {
-  if (type != TokenType::kVariable)
-    throw std::logic_error("Cannot access var for non-Variable token");
-  return _var;
-}
-
-std::string Token::ToString(std::function<std::string(Token &)> get_func_call) {
-  switch (type) {
-  case TokenType::kInteger:
-    return std::to_string(value());
-  case TokenType::kOperator:
-    return std::string(1, op());
-  case TokenType::kFunctionCall:
-    return get_func_call(*this);
-  case TokenType::kVariable:
-    return var();
-  default:
-    return "";
-  }
-}
-
-// ======================== OPERATORS ========================
-
-std::ostream &operator<<(std::ostream &s, const Token &e) {
-  switch (e.type) {
-  case TokenType::kInteger: {
-    s << e.value();
-    break;
-  }
-  case TokenType::kOperator: {
-    s << e.op();
-    break;
-  }
-  case TokenType::kFunctionCall: {
-    s << e.func();
-    break;
-  }
-  case TokenType::kVariable: {
-    s << e.var();
-    break;
-  }
-  default: {
-  }
-  }
-  return s;
-}
-
-std::ostream &operator<<(std::ostream &s, const std::list<Token> &l) {
-  for (auto const &e : l)
-    s << e << " ";
-  return s;
-}
-
-std::ostream &operator<<(std::ostream &s, TokenType e) {
-  switch (e) {
-  case TokenType::kInteger: {
-    s << "Integer";
-    break;
-  }
-  case TokenType::kOperator: {
-    s << "Operator";
-    break;
-  }
-  case TokenType::kFunctionCall: {
-    s << "FunctionCall";
-    break;
-  }
-  case TokenType::kVariable: {
-    s << "kVariable";
-    break;
-  }
-  default:
-    s << "Uninitialized";
-  }
-  return s;
 }

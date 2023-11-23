@@ -7,56 +7,41 @@
    replace it beforehand  by something else.
 */
 
-// TODO (Paulius): remove unnecessary includes. Make sure that all the other
-// files have appropriate includes.
-#include <algorithm>
-#include <cctype>
 #include <fstream>
-#include <functional>
 #include <iostream>
-#include <list>
 #include <map>
-#include <math.h>
 #include <memory>
-#include <regex>
 #include <set>
 #include <sstream>
-#include <stack>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "expression.h"
 #include "function_call.h"
 #include "token.h"
 
-// TODO (Paulius): two classes and a bunch of functions. Can they be
-// reorganised in a better way?
-
 // TODO (Paulius): fix the function name formatting
 
-// generates c++ definitions for the equations
+/** Generates C++ definitions for the equations */
 std::string generate_function_def(std::string eqn) {
   std::stringstream code;
   size_t loc = eqn.find('=');
-  Token lhs = Expression(eqn.substr(0, loc)).Front();
+  std::unique_ptr<FunctionCall> lhs =
+      std::unique_ptr<FunctionCall>(FunctionCall::Create(eqn.substr(0, loc)));
   std::unique_ptr<Expression> rhs =
       Expression(eqn.substr(loc + 1, eqn.size() - loc - 1)).HandlePower();
   std::string signature =
-      lhs.GetFunctionSignature("mpz_class", "unsigned long", "");
+      lhs->GetFunctionSignature("mpz_class", "unsigned long", "");
   code << signature << "{\n";
 
   // check if the element is present in the cache
   code << "\tmpz_class& stored_val = ";
   std::stringstream stored_val_loc_stream;
-  for (unsigned i{0}; i < lhs.func().func_args.size(); i++) {
+  for (unsigned i = 0; i < lhs->func_args.size(); i++)
     stored_val_loc_stream << "get_elem(";
-  }
-  stored_val_loc_stream << lhs.func().func_name << "_cache";
-  for (unsigned i{0}; i < lhs.func().func_args.size(); i++) {
-    stored_val_loc_stream << ", " << lhs.func().func_args.at(i)->ToString()
-                          << ")";
-  }
+  stored_val_loc_stream << lhs->func_name << "_cache";
+  for (unsigned i = 0; i < lhs->func_args.size(); i++)
+    stored_val_loc_stream << ", " << lhs->func_args.at(i)->ToString() << ")";
   stored_val_loc_stream << ".n";
   std::string stored_val_loc = stored_val_loc_stream.str();
   code << stored_val_loc;
@@ -64,42 +49,36 @@ std::string generate_function_def(std::string eqn) {
 
   // find the maximum subtractor among the arguments in the rhs
   std::map<std::string, int> max_sub;
-  for (auto const &arg : lhs.func().func_args)
-    if (arg->Front().type == TokenType::kVariable)
-      max_sub.insert({arg->Front().var(), 0});
+  for (auto const &arg : lhs->func_args)
+    if (arg->Front()->GetVariable() != "")
+      max_sub.insert({arg->Front()->GetVariable(), 0});
   auto max_sub_vec = rhs->MaxDecrementPerVariable(max_sub);
 
   // handling the case where all args are +ve for the call with all variable
   // arguments
   std::vector<std::string> free_vars;
-  for (auto const &exp : lhs.func().func_args) {
-    if (exp->Front().type == TokenType::kVariable)
-      free_vars.push_back(exp->Front().var());
-  }
+  for (auto const &exp : lhs->func_args)
+    if (exp->Front()->GetVariable() != "")
+      free_vars.push_back(exp->Front()->GetVariable());
   if (max_sub_vec.size()) {
     code << "\tif (";
-    for (unsigned i{0}; i < max_sub_vec.size(); i++) {
+    for (unsigned i = 0; i < max_sub_vec.size(); i++) {
       if (i != 0)
         code << " && ";
       code << max_sub_vec.at(i).first << " >= " << max_sub_vec.at(i).second;
     }
     code << "){\n\t\tmpz_class ret_val = "
-         << rhs->ToString([free_vars](Token &e) {
-              if (e.func().func_name == "Binomial" ||
-                  e.func().func_name == "power" || e.func().func_name == "Sum")
-                return e.func().ToCppString(free_vars);
-              return e.func().ToString(true);
+         << rhs->ToString([free_vars](const Token &e) {
+              return e.ToCppString(free_vars);
             })
          << ";\n\t\t" << stored_val_loc
          << " = ret_val;\n\t\treturn ret_val;\n\t}\n";
   } else {
-    code << "\tmpz_class ret_val = " << rhs->ToString([free_vars](Token &e) {
-      if (e.func().func_name == "Binomial" || e.func().func_name == "power" ||
-          e.func().func_name == "Sum")
-        return e.func().ToCppString(free_vars);
-      return e.func().ToString(true);
-    }) << ";\n\t"
-         << stored_val_loc << " = ret_val;\n\treturn ret_val;\n";
+    code << "\tmpz_class ret_val = "
+         << rhs->ToString([free_vars](const Token &e) {
+              return e.ToCppString(free_vars);
+            })
+         << ";\n\t" << stored_val_loc << " = ret_val;\n\treturn ret_val;\n";
   }
 
   // handling the rest of the cases
@@ -107,19 +86,17 @@ std::string generate_function_def(std::string eqn) {
     for (int sub = 0; sub < max_sub_vec.at(i).second; sub++) {
       code << "\telse if (" << max_sub_vec.at(i).first << " == " << sub << "){";
       code << "\n\t\treturn "
-           << lhs.ToString([max_sub_vec, i, sub](const Token &e) {
-                Token transformed_e = e;
-                for (unsigned j = 0; j < transformed_e.func().func_args.size();
-                     j++) {
-                  if (transformed_e.func().func_args.at(j)->Front().type ==
-                          TokenType::kVariable &&
-                      transformed_e.func().func_args.at(j)->Front().var() ==
-                          max_sub_vec.at(i).first) {
-                    transformed_e.func().func_args.at(j)->SetFront(sub);
+           << lhs->ToString([max_sub_vec, i, sub](const Token &e) {
+                auto transformed_e =
+                    static_cast<const FunctionCall &>(e).CloneFunctionCall();
+                for (unsigned j = 0; j < transformed_e->func_args.size(); j++) {
+                  if (transformed_e->func_args.at(j)->Front()->GetVariable() ==
+                      max_sub_vec.at(i).first) {
+                    transformed_e->func_args.at(j)->SetFront(sub);
                     break;
                   }
                 }
-                return transformed_e.GetFunctionSignature("", "", "");
+                return transformed_e->GetFunctionSignature("", "", "");
               })
            << ";\n\t}\n";
     }
@@ -128,12 +105,12 @@ std::string generate_function_def(std::string eqn) {
   return code.str();
 }
 
-std::string generate_cpp_code(std::vector<std::string> equations) {
+std::string generate_cpp_code(const std::vector<std::string> &equations) {
   std::stringstream code;
   for (auto &eqn : equations) {
     code << Expression(eqn.substr(0, eqn.find('=')))
                 .Front()
-                .GetFunctionSignature("mpz_class", "unsigned long")
+                ->GetFunctionSignature("mpz_class", "unsigned long")
          << "\n";
   }
   code << "\n";
@@ -144,13 +121,11 @@ std::string generate_cpp_code(std::vector<std::string> equations) {
 }
 
 std::set<std::pair<std::string, int>>
-get_functions(std::vector<std::string> equations) {
+get_functions(const std::vector<std::string> &equations) {
   std::set<std::pair<std::string, int>> functions;
-  for (std::string eqn : equations) {
-    size_t loc = eqn.find('=');
-    Token lhs = Expression(eqn.substr(0, loc)).Front();
-    functions.insert({lhs.func().func_name, lhs.func().func_args.size()});
-  }
+  for (const auto &eqn : equations)
+    functions.insert(
+        Expression(eqn.substr(0, eqn.find('='))).Front()->GetFunctionPair());
   return functions;
 }
 
@@ -182,18 +157,15 @@ generate_cpp_code_with_main(std::vector<std::string> equations,
   // make the caches
   std::set<std::pair<std::string, int>> functions = get_functions(equations);
   for (const auto &func : functions) {
-    for (int i{0}; i < func.second; i++) {
+    for (int i = 0; i < func.second; i++)
       code << "std::vector<";
-    }
     code << "cache_elem";
-    for (int i{0}; i < func.second; i++) {
+    for (int i = 0; i < func.second; i++)
       code << ">";
-    }
     code << " " << func.first << "_cache"
          << ";\n";
   }
-  code << "\n";
-  code << generate_cpp_code(equations) << std::endl;
+  code << "\n" << generate_cpp_code(equations) << std::endl;
 
   code << "int main(int argc, char *argv[]) {" << std::endl
        << "\tif (argc != " << domains.size() << " + 1) {" << std::endl
