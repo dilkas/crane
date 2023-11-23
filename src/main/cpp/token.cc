@@ -138,3 +138,12 @@ void OperatorToken::ShuntingYard(
     operator_stack.push(Clone());
   }
 }
+
+std::string
+VariableToken::ToString(std::function<std::string(const Token &)>) const {
+  if (value_ == "Less")
+    return "<";
+  if (value_ == "LessEqual")
+    return "<=";
+  return value_;
+}

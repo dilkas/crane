@@ -51,6 +51,15 @@ private:
   std::string GetFunctionName() const;
 };
 
+class InequalityFunctionCall : public FunctionCall {
+public:
+  InequalityFunctionCall(const std::string &func_name,
+                         const std::vector<Expression *> &func_args)
+      : FunctionCall(func_name, func_args) {}
+  FunctionCall *CloneFunctionCall() const override;
+  std::string ToCppString(std::vector<std::string>) const override;
+};
+
 /** Binomial and power functions */
 class OtherFunctionCall : public FunctionCall {
 public:

@@ -41,6 +41,8 @@ FunctionCall *FunctionCall::Create(const std::string &call_str) {
 
   if (func_name == "Binomial" || func_name == "power")
     return new OtherFunctionCall(func_name, func_args);
+  if (func_name == "Inequality")
+    return new InequalityFunctionCall(func_name, func_args);
   if (func_name == "Piecewise")
     return new PiecewiseFunctionCall(func_name, func_args);
   if (func_name == "Sum")
@@ -92,6 +94,28 @@ void FunctionCall::HandlePower(
   std::list<std::unique_ptr<Token>> list;
   list.push_back(std::unique_ptr<Token>(new_unit));
   exp_stack.push(std::move(list));
+}
+
+FunctionCall *InequalityFunctionCall::CloneFunctionCall() const {
+  std::vector<Expression *> new_func_args;
+  for (auto const &arg : func_args)
+    new_func_args.push_back(new Expression(arg.get()));
+  return new InequalityFunctionCall(func_name, new_func_args);
+}
+
+std::string
+InequalityFunctionCall::ToCppString(std::vector<std::string> free_vars) const {
+  assert(func_args.size() == 5);
+  std::stringstream cpp_exp;
+  auto get_func_call = [free_vars](const Token &e) {
+    return e.ToCppString(free_vars);
+  };
+  for (int i = 0; i < 3; i++)
+    cpp_exp << func_args.at(i)->ToString(get_func_call) << " ";
+  cpp_exp << "&&";
+  for (int i = 2; i < 5; i++)
+    cpp_exp << " " << func_args.at(i)->ToString(get_func_call);
+  return cpp_exp.str();
 }
 
 void FunctionCall::MaxDecrementPerVariable(

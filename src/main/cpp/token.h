@@ -127,9 +127,7 @@ public:
   std::string GetVariable() const override { return value_; }
 
   std::string
-  ToString(std::function<std::string(const Token &)>) const override {
-    return value_;
-  }
+  ToString(std::function<std::string(const Token &)>) const override;
 
 private:
   std::string value_;

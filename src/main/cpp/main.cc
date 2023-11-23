@@ -21,6 +21,7 @@
 #include "token.h"
 
 // TODO (Paulius): fix the function name formatting
+// TODO (Paulius): fix memory leaks
 
 /** Generates C++ definitions for the equations */
 std::string generate_function_def(std::string eqn) {
