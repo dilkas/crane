@@ -529,6 +529,9 @@ class SimplifyUsingWolfram(
 
   // ========================= SINK NODES =====================================
 
+  // TODO (Paulius): transfer this to LatexOutputVisitor as well (or maybe
+  // eliminate LatexOutputVisitor)
+
   /** Output [c <= variableNames(d) < c + v], where d is the unique domain, c is
     * the number of constants, and v is the number of variables.
     *
@@ -543,31 +546,8 @@ class SimplifyUsingWolfram(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
-    if (leaf.clause.domains.size != 1) {
-      throw new IllegalStateException(
-        "Contradiction clauses with more than one domain are not supported (but support for them could easily be added if need-be)"
-      )
-    }
-    for (variable <- leaf.clause.constrVariables) {
-      if (
-        !leaf.clause.constrs
-          .differentFrom(Set(variable))
-          .equals(
-            leaf.clause.constrs.constants
-              .asInstanceOf[Set[Term]] | leaf.clause.constrVariables
-              .asInstanceOf[Set[Term]] - variable.asInstanceOf[Term]
-          )
-      )
-        throw new IllegalStateException(
-          "The contradiction doesn't fit the expected format"
-        )
-    }
-    (
-      "Piecewise[{{1, Inequality[" + leaf.clause.constrs.constants.size + ", LessEqual, " + variableNames(
-        leaf.clause.domains.head
-      ) + ", Less, " + (leaf.clause.constrs.constants.size + leaf.clause.constrVariables.size) + "]}}, 0]",
-      Nil
-    )
+    val conditions = leaf.clause.hasConstraintSolution(variableNames)
+    if (conditions == "") ("1", Nil) else (s"Piecewise[{{1, Inequality[$conditions]}}, 0]", Nil)
   }
 
   protected def visitFalse(

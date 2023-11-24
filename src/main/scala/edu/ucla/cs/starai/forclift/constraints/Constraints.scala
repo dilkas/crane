@@ -274,6 +274,24 @@ final case class Constraints(
 
   // split because the handling of inequality constraints between variables
   // only works when they have the same domain method critical for performance
+  def hasSolutionAssumingShatteredDomains(variableNames: Map[Domain, String]): String = {
+    assume(!needsIneqDomainShattering)
+    var dims: List[(collection.Set[Constant], Int, Domain)] =
+      domainsWithExclusions.groupBy(_._3).mapValues(l => l.maxBy(_._2)).values.toList
+    var expression: String = ""
+    while (dims.nonEmpty) {
+      val dim = dims.head
+      val domainSize: String = dim._3.symbolicSize(variableNames, dim._1)
+      val min = dim._1.size
+      val max = dim._1.size + dim._2
+      expression += s"$min, LessEqual, $domainSize, LessEqual, $max && "
+      dims = dims.tail
+    }
+    return expression.dropRight(4)
+  }
+
+  // split because the handling of inequality constraints between variables
+  // only works when they have the same domain method critical for performance
   def nbGroundingsAssumingShatteredDomains(domainSizes: DomainSizes): GInt = {
     assume(!needsIneqDomainShattering)
     var nbGroundings: GInt = 1
@@ -285,12 +303,6 @@ final case class Constraints(
       nbGroundings *= (domainSize - dim._2)
       dims = dims.tail
     }
-    //		val nbGroundings: Int = elemConstrs.iterator.map{case (v,d) =>
-    //			val excludedConstants = ineqConstrs(v).collect{case c: Constant => c}
-    //			val excludedLogVars: Int = ineqConstrs(v).count{t => t.isInstanceOf[Var] && t.hashCode > v.hashCode}
-    //			domainSize - excludedLogVars
-    //		}.product
-    // assume(nbGroundings == ground(domainSizes).size) moved to test
     nbGroundings
   }
 

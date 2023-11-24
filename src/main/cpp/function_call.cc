@@ -105,16 +105,18 @@ FunctionCall *InequalityFunctionCall::CloneFunctionCall() const {
 
 std::string
 InequalityFunctionCall::ToCppString(std::vector<std::string> free_vars) const {
-  assert(func_args.size() == 5);
+  assert(func_args.size() == 3 || func_args.size() == 5);
   std::stringstream cpp_exp;
   auto get_func_call = [free_vars](const Token &e) {
     return e.ToCppString(free_vars);
   };
   for (int i = 0; i < 3; i++)
     cpp_exp << func_args.at(i)->ToString(get_func_call) << " ";
-  cpp_exp << "&&";
-  for (int i = 2; i < 5; i++)
-    cpp_exp << " " << func_args.at(i)->ToString(get_func_call);
+  if (func_args.size() == 5) {
+    cpp_exp << " && ";
+    for (int i = 2; i < 5; i++)
+      cpp_exp << " " << func_args.at(i)->ToString(get_func_call);
+  }
   return cpp_exp.str();
 }
 

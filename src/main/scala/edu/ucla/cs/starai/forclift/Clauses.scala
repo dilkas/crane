@@ -956,6 +956,20 @@ sealed trait UnitClause extends Clause {
     return false
   }
 
+  @inline def hasConstraintSolution(
+      variableNames: Map[Domain, String]
+  ): String = {
+    // optimized for performance
+    var conditions = "";
+    val iter = shatterIneqDomains.iterator
+    while (iter.hasNext) {
+      val condition =
+        iter.next.hasConstraintSolutionAssumingShatteredDomains(variableNames)
+      conditions = conditions + condition + " && "
+    }
+    return conditions.dropRight(4)
+  }
+
   @inline def nbConstraintGroundings(domainSizes: DomainSizes): GInt = {
     // optimized for performance
     var count = 0;
@@ -987,6 +1001,12 @@ sealed trait UnitClause extends Clause {
       domainSizes: DomainSizes
   ): Boolean = {
     constrs.hasSolutionAssumingShatteredDomains(domainSizes)
+  }
+
+  @inline private def hasConstraintSolutionAssumingShatteredDomains(
+      variableNames: Map[Domain, String]
+  ): String = {
+    constrs.hasSolutionAssumingShatteredDomains(variableNames)
   }
 
   @inline private def nbGroundingsAssumingShatteredDomains(
