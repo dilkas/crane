@@ -1,5 +1,6 @@
 package edu.ucla.cs.starai.forclift.nnf
 
+// TODO (Paulius): sort them
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
@@ -14,7 +15,10 @@ import scala.util.control.Breaks._
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import scala.collection.mutable.ListBuffer
 import edu.ucla.cs.starai.forclift.constraints.Constraints
+import com.google.common.collect.BiMap
+import com.google.common.collect.HashBiMap
 import scala.collection.mutable.Stack
+import scala.collection.JavaConversions._
 
 /** The boolean is true if the term is positive, else false.
   *
@@ -515,8 +519,6 @@ object Basecases {
     println("Equations: " + equations.toString())
     var expandedEquations: List[String] =
       equations.map(eq => expand_equation(eq.replaceAll(" ", "")))
-    val domainVarMap: collection.mutable.Map[Domain, String] =
-      varDomainMap.flatMap { case (key, value) => Seq(value -> key) }
     val baseCases: ListBuffer[String] = ListBuffer()
 
     for (
@@ -524,10 +526,10 @@ object Basecases {
         findFunctionDependency(expandedEquations)
       )
     ) {
-      val baseCaseLhsCall: FuncCall = new FuncCall(baseCaseLhs)
+      val lhsCall: FuncCall = new FuncCall(baseCaseLhs)
       val funcSignatureStr: String = expandedEquations(
         expandedEquations.indexWhere(
-          _.startsWith(baseCaseLhsCall.funcName)
+          _.startsWith(lhsCall.funcName)
         )
       )
       val signature: FuncCall = new FuncCall(
@@ -535,17 +537,17 @@ object Basecases {
       )
       println(
         "signature: " + signature
-          .toString() + ", base case: " + baseCaseLhsCall.toString()
+          .toString() + ", base case: " + lhsCall.toString()
       )
       val diffIndex: Int =
-        signature.args.zipWithIndex.zip(baseCaseLhsCall.args).indexWhere {
+        signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
           case ((a, i), b) => a.terms(0)._2 != b.terms(0)._2
         }
       val constDomain: Domain = varDomainMap(
         signature.args(diffIndex).terms(0)._2
       )
       val funcWcnf: WeightedCNF = new WeightedCNF(
-        new CNF(clauseFuncMap(baseCaseLhsCall.funcName)),
+        new CNF(clauseFuncMap(lhsCall.funcName)),
         wcnf.domainSizes,
         wcnf.predicateWeights,
         wcnf.conditionedAtoms,
@@ -553,7 +555,7 @@ object Basecases {
       )
       val transformedWcnf: ListBuffer[(WeightedCNF, String)] =
         transformClauses(
-          baseCaseLhsCall,
+          lhsCall,
           funcWcnf,
           constDomain,
           varDomainMap
@@ -565,13 +567,12 @@ object Basecases {
         ) {
           baseCases ++= findBaseCases2(
             expandedEquations,
-            domainVarMap,
-            baseCaseLhsCall,
+            lhsCall,
             constDomain,
             signature.funcName,
             simplifiedWcnf,
             multiplier,
-            varDomainMap
+            HashBiMap.create(varDomainMap)
           )
         }
       }
@@ -582,15 +583,14 @@ object Basecases {
   // TODO (Paulius): 1) better name, 2) shorter list of arguments (at most 4)
   def findBaseCases2(
       expandedEquations: List[String],
-      domainVarMap: collection.mutable.Map[Domain, String],
-      baseCaseLhsCall: FuncCall,
+      lhsCall: FuncCall,
       constDomain: Domain,
       func: String,
       simplifiedWcnf: WeightedCNF,
       multiplier: String,
-      varDomainMap: collection.mutable.Map[String, Domain]
+      varDomainMap: BiMap[String, Domain]
   ): ListBuffer[String] = if (multiplier == "0") {
-    ListBuffer(baseCaseLhsCall.toString + " = 0")
+    ListBuffer(lhsCall.toString + " = 0")
   } else {
     val newEquations: ListBuffer[String] = ListBuffer()
     var baseCaseVarDomainMap: scala.collection.mutable.Map[String, Domain] =
@@ -637,9 +637,8 @@ object Basecases {
           .toSet
           .diff(freeVars)
       for (freeVar <- freeVars) {
-        val toReplace: String = domainVarMap(
-          baseCaseVarDomainMap(freeVar)
-        )
+        val toReplace: String =
+          varDomainMap.inverse.get(baseCaseVarDomainMap(freeVar))
         if (toReplace != freeVar) {
           // check if there is a collision and handle it
           if (f0BoundedVars.contains(toReplace)) {
@@ -670,8 +669,8 @@ object Basecases {
         )
       ).toArray
       val actualFuncArgs: Array[String] = findArgs(
-        baseCaseLhsCall.toString.substring(
-          baseCaseLhsCall.toString.indexOf('[')
+        lhsCall.toString.substring(
+          lhsCall.toString.indexOf('[')
         )
       ).toArray
       val indexMap: scala.collection.mutable.Map[Int, Int] = Map()
@@ -726,22 +725,23 @@ object Basecases {
     val funcEquation: String = expandedEquations(
       expandedEquations.indexWhere(_.startsWith(func))
     )
-    newEquations(indexOfF0) =
-      baseCaseLhsCall.toString + "=" + (if (multiplier != "1")
-                                          (multiplier + "(")
-                                        else "") + newEquations(indexOfF0)
-        .substring(indexOfEquals + 1) + (if (multiplier != "1") ")"
-                                         else "")
+    newEquations(indexOfF0) = lhsCall.toString + "=" + (if (multiplier != "1")
+                                                          (multiplier + "(")
+                                                        else "") + newEquations(
+      indexOfF0
+    )
+      .substring(indexOfEquals + 1) + (if (multiplier != "1") ")"
+                                       else "")
 
     // find the constant
     var const: Int = -1
-    for (arg <- baseCaseLhsCall.args) {
+    for (arg <- lhsCall.args) {
       if (arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")) {
         const = arg.terms(0)._2.toInt
       }
     }
     newEquations(indexOfF0) = newEquations(indexOfF0).replaceAll(
-      domainVarMap(constDomain),
+      varDomainMap.inverse.get(constDomain),
       const.toString()
     )
     newEquations
