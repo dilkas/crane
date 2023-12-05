@@ -115,7 +115,7 @@ case class WeightedCNF(
   lazy val SimplifyInWolfram: List[String] = smoothNnfs.map { nnf =>
     val functionIntroductionFinder = new FunctionIntroductionFinder
     functionIntroductionFinder.visit(nnf)
-    val (recursions, clause_func_map, var_domain_map): (
+    val (recursions, clauseFuncMap, varDomainMap): (
         List[String],
         scala.collection.mutable.Map[String, List[Clause]],
         scala.collection.mutable.Map[String, Domain]
@@ -125,11 +125,11 @@ case class WeightedCNF(
       predicateWeights,
       nnf
     )
-    varDomainMap ++= var_domain_map
-    (recursions ++ Basecases.find_base_cases(
+    varDomainMap ++= varDomainMap
+    (recursions ++ Basecases.findBaseCases(
       recursions,
-      clause_func_map,
-      var_domain_map,
+      clauseFuncMap,
+      varDomainMap,
       this
     ))
   }.flatten
