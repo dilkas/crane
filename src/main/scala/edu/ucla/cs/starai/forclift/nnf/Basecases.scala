@@ -109,18 +109,30 @@ object FuncArgument {
 
 /** Represents a function call of the form f1(x1, x2-3, ...) */
 class FuncCall(val funcName: String, val args: List[FuncArgument]) {
+
+  lazy val findConstant: Int = lhsCall.args.find(arg =>
+    arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")
+  ) match {
+    case Some(value) => value.terms(0)._2.toInt
+    case _           => throw new IllegalStateException("No constant found")
+  }
+
+  def replaceArgument(index: Int, value: String): FuncCall =
+    new FuncCall(funcName, args.updated(index, FuncArgument(value)))
+
   override def toString(): String =
     funcName + "[" + args.map(_.toString).mkString(",") + "]"
 }
 
 object FuncCall {
   def apply(call: String) = {
-    val args = call
-      .substring(call.indexOf('[') + 1, call.length() - 1)
+    val call2 = call.replaceAll("\\s", "")
+    val args = call2
+      .substring(call2.indexOf('[') + 1, call2.length() - 1)
       .split(',')
-      .map(str => FuncArgument(str.replaceAll("\\s", "")))
+      .map(str => FuncArgument(str))
       .toList
-    new FuncCall(call.substring(0, call.indexOf('[')), args)
+    new FuncCall(call2.substring(0, call2.indexOf('[')), args)
   }
 }
 
@@ -271,46 +283,28 @@ object Basecases {
   def getSufficientBaseCaseSet(
       dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]]
   ): Set[String] = {
-    var baseCases: mutable.Set[String] = mutable.Set()
-    for (dependency <- dependencies) {
-      for (rhsFunc <- dependency._2) {
-        if (rhsFunc.funcName == dependency._1.funcName) {
-          for (arg <- rhsFunc.args) {
-            if (arg.terms.length > 2)
-              throw new IllegalStateException(
-                "This type of term not supported : " + arg.toString()
-              )
-            else if (arg.terms.length == 2) {
-              val lim: Int = arg.terms(1)._2.toInt - 1
-              for (l <- 0 to lim) {
-                baseCases += dependency._1
-                  .toString()
-                  .replace(arg.terms(0)._2, l.toString())
-              }
-            }
-          }
-        } else {
-          for (arg <- rhsFunc.args) {
-            if (arg.terms.length > 2)
-              throw new IllegalStateException(
-                "This type of term not supported : " + arg.toString()
-              )
-            else if (arg.terms.length == 2) {
-              val lim: Int = arg.terms(1)._2.toInt - 1
-              for (l <- 0 to lim) {
-                baseCases += dependency._1
-                  .toString()
-                  .replace(arg.terms(0)._2, l.toString())
-                baseCases += (rhsFunc.funcName + "[" + rhsFunc.args
-                  .map(_.terms(0)._2)
-                  .mkString(",") + "]").replace(arg.terms(0)._2, l.toString())
-              }
-            }
-          }
+    var baseCases = Set[String]()
+    for {
+      dependency <- dependencies
+      rhsFunc <- dependency._2
+      (arg, i) <- rhsFunc.args.zipWithIndex
+    } {
+      if (arg.terms.length > 2) {
+        throw new IllegalStateException(
+          "This type of term not supported : " + arg.toString
+        )
+      } else if (arg.terms.length == 2) {
+        val lim: Int = arg.terms(1)._2.toInt - 1
+        for (l <- 0 to lim) {
+          baseCases += dependency._1.replaceArgument(i, l.toString).toString
+          if (rhsFunc.funcName != dependency._1.funcName)
+            baseCases += (rhsFunc.funcName + "[" + rhsFunc.args
+              .map(_.terms(0)._2)
+              .mkString(",") + "]").replace(arg.terms(0)._2, l.toString)
         }
       }
     }
-    return baseCases
+    baseCases
   }
 
   case class BaseCaseIndexedConstant(val i: Int) {
@@ -612,16 +606,15 @@ case class Equations(val equations: List[String]) {
     equations.map(eq => Basecases.expandEquation(eq.replaceAll(" ", "")))
   )
 
-  // TODO (Paulius): add an empty constructor to Equations and use it instead of List()
+  // TODO (Paulius): add an empty constructor to Equations and use it instead
+  // of List()
 
   def findBaseCases(
       clauseFuncMap: collection.mutable.Map[String, List[Clause]],
       varDomainMap: collection.mutable.Map[String, Domain],
       wcnf: WeightedCNF
   ): List[String] = {
-    println("Equations: " + equations.toString())
     var baseCases = Equations(List())
-
     for (
       baseCaseLhs <- Basecases.getSufficientBaseCaseSet(
         expanded.findFunctionDependency
@@ -629,12 +622,8 @@ case class Equations(val equations: List[String]) {
     ) {
       val lhsCall = FuncCall(baseCaseLhs)
       val funcSignatureStr: String = startsWith(lhsCall.funcName)
-      println("funcSignatureStr: " + funcSignatureStr)
       val signature = FuncCall(
         funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
-      )
-      println(
-        "signature: " + signature.toString + ", base case: " + lhsCall.toString
       )
       val diffIndex: Int =
         signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
@@ -643,22 +632,20 @@ case class Equations(val equations: List[String]) {
       val constDomain: Domain = varDomainMap(
         signature.args(diffIndex).terms(0)._2
       )
-      val transformedWcnf: ListBuffer[(WeightedCNF, String)] =
-        Basecases.transformClauses(
-          lhsCall,
-          new WeightedCNF(
-            new CNF(clauseFuncMap(lhsCall.funcName)),
-            wcnf.domainSizes,
-            wcnf.predicateWeights,
-            wcnf.conditionedAtoms,
-            wcnf.compilerBuilder
-          ),
-          constDomain,
-          varDomainMap
-        )
-
       for (
-        (simplifiedWcnf: WeightedCNF, multiplier: String) <- transformedWcnf
+        (simplifiedWcnf: WeightedCNF, multiplier: String) <- Basecases
+          .transformClauses(
+            lhsCall,
+            new WeightedCNF(
+              new CNF(clauseFuncMap(lhsCall.funcName)),
+              wcnf.domainSizes,
+              wcnf.predicateWeights,
+              wcnf.conditionedAtoms,
+              wcnf.compilerBuilder
+            ),
+            constDomain,
+            varDomainMap
+          )
       ) {
         baseCases ++= expanded.findBaseCases2(
           lhsCall,
@@ -718,18 +705,13 @@ case class Equations(val equations: List[String]) {
       lhsCall,
       maxFuncNumber.max(newEquations.maxFuncNumber)
     )
-    newEquations = newNewEquations
 
-    // find the constant
-    val const = lhsCall.args.find(arg =>
-      arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")
-    ) match {
-      case Some(value) => value.terms(0)._2.toInt
-      case _           => throw new IllegalStateException("No constant found")
-    }
-    newEquations.updated(
+    newNewEquations.updated(
       newIndexOfF0,
-      _.replaceAll(varDomainMap.inverse.get(constDomain), const.toString)
+      _.replaceAll(
+        varDomainMap.inverse.get(constDomain),
+        lhsCall.findConstant.toString
+      )
     )
   }
 
@@ -783,6 +765,7 @@ case class Equations(val equations: List[String]) {
   def updated(index: Int, value: String): Equations = Equations(
     equations.updated(index, value)
   )
+
   def updated(index: Int, f: String => String): Equations =
     updated(index, f(equations(index)))
 
