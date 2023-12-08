@@ -146,14 +146,14 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     val equations = inputCLI.wcnfModel.SimplifyInWolfram
     logger.debug("")
     equations
-      .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+      .map(eqn => Basecases.expandEquation(eqn.replaceAll(" ", "")))
       .foreach { logger.debug(_) }
 
     NumericalEvaluation.generate_cpp_code(
       inputCLI.wcnfModel,
       inputCLI.wcnfModel.varDomainMap,
       equations
-        .map(eqn => Basecases.expand_equation(eqn.replaceAll(" ", "")))
+        .map(eqn => Basecases.expandEquation(eqn.replaceAll(" ", "")))
         .toArray,
       inputCLI.parser.domains.reverse
     )

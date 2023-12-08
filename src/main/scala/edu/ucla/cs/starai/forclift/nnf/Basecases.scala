@@ -4,8 +4,6 @@ package edu.ucla.cs.starai.forclift.nnf
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
-import edu.ucla.cs.starai.forclift.Clause
-import edu.ucla.cs.starai.forclift.Domain
 import edu.ucla.cs.starai.forclift.compiler.rulesets.MyCompiler
 import scala.collection._
 import scala.util.matching.Regex
@@ -20,13 +18,15 @@ import com.google.common.collect.HashBiMap
 import scala.collection.mutable.Stack
 import scala.collection.JavaConversions._
 
+// TODO (Paulius): instead of objects, use case classes and put the apply
+// methods in them
+
 /** The boolean is true if the term is positive, else false.
   *
   * @param terms
   *   represents a function argument of the form x1-x2 or x1-10-x2 or x2-0
   */
 class FuncArgument(val terms: List[(Boolean, String)]) {
-
   override def toString(): String = terms.map(_._2).mkString("-")
 }
 
@@ -34,58 +34,58 @@ object FuncArgument {
 
   def apply(argStr: String) = {
     var temp = removeParentheses(argStr).split('-')
-    val term_buf: ListBuffer[(Boolean, String)] = ListBuffer()
+    val termBuf: ListBuffer[(Boolean, String)] = ListBuffer()
     if (argStr(0) == '-') {
-      val plus_loc = argStr.indexOf('+')
-      val plus_term =
-        ("x?[0-9]+".r).findFirstIn(argStr.substring(plus_loc)).getOrElse("")
-      if (plus_term == "") {
+      val plusLoc = argStr.indexOf('+')
+      val plusTerm =
+        ("x?[0-9]+".r).findFirstIn(argStr.substring(plusLoc)).getOrElse("")
+      if (plusTerm == "") {
         throw new IllegalStateException("Invalid argument: " + argStr)
       }
-      term_buf += ((true, plus_term))
+      termBuf += ((true, plusTerm))
       for (t <- 0 to temp.length - 1)
         if (temp(t) != "")
-          term_buf += ((false, temp(t).split('+')(0)))
+          termBuf += ((false, temp(t).split('+')(0)))
     } else {
-      term_buf += ((true, temp(0)))
+      termBuf += ((true, temp(0)))
       for (t <- 1 to temp.length - 1)
-        term_buf += ((false, temp(t)))
+        termBuf += ((false, temp(t)))
     }
 
     // simplifying in case multiple arguments are integers
-    var const_term: Int = 0
-    var simplified_terms: ListBuffer[(Boolean, String)] = ListBuffer()
-    for ((b, s) <- term_buf) {
+    var constTerm: Int = 0
+    var simplifiedTerms: ListBuffer[(Boolean, String)] = ListBuffer()
+    for ((b, s) <- termBuf) {
       if (s.matches("[0-9]+")) {
         b match {
-          case true  => const_term = const_term + s.toInt
-          case false => const_term = const_term - s.toInt
+          case true  => constTerm = constTerm + s.toInt
+          case false => constTerm = constTerm - s.toInt
         }
       } else {
-        simplified_terms += ((b, s))
+        simplifiedTerms += ((b, s))
       }
     }
-    const_term.signum match {
-      case -1 => simplified_terms += ((false, (-const_term).toString()))
-      case 1  => simplified_terms += ((true, const_term.toString()))
+    constTerm.signum match {
+      case -1 => simplifiedTerms += ((false, (-constTerm).toString()))
+      case 1  => simplifiedTerms += ((true, constTerm.toString()))
       case _ =>
-        if (simplified_terms.size == 0) { simplified_terms += ((true, "0")) }
+        if (simplifiedTerms.size == 0) { simplifiedTerms += ((true, "0")) }
     }
-    new FuncArgument(simplified_terms.toList)
+    new FuncArgument(simplifiedTerms.toList)
   }
 
   def removeParentheses(exp: String): String = {
     var ans: StringBuilder = new StringBuilder()
-    var num_minus: Int = 0
-    val sign_stack: Stack[Boolean] = Stack()
-    sign_stack.push(true)
+    var numMinus: Int = 0
+    val signStack: Stack[Boolean] = Stack()
+    signStack.push(true)
     for (index <- 0 to exp.length() - 1) {
       if (exp(index) == ')') {
-        sign_stack.pop()
+        signStack.pop()
       } else if (exp(index) == '+' || exp(index) == '-') {
         if (index != 0 && exp(index - 1) == '(' && ans.length != 0)
           ans.setLength(ans.length - 1)
-        if (sign_stack.top) {
+        if (signStack.top) {
           ans += exp(index)
         } else {
           if (exp(index) == '-') ans += '+'
@@ -93,9 +93,9 @@ object FuncArgument {
         }
         if (exp(index + 1) == '(') {
           if (exp(index) == '-')
-            sign_stack.push(!sign_stack.top)
+            signStack.push(!signStack.top)
           else
-            sign_stack.push(sign_stack.top)
+            signStack.push(signStack.top)
         }
       } else if (exp(index) == '(') {} else {
         ans += exp(index)
@@ -127,28 +127,28 @@ object FuncCall {
 // TODO (Paulius): remove this object
 object Basecases {
 
-  def findArgs(call_str: String, sep: Char = ','): List[String] = {
-    val str = call_str.replaceAll(" ", "")
+  def findArgs(callStr: String, sep: Char = ','): List[String] = {
+    val str = callStr.replaceAll(" ", "")
     var args: List[String] = List()
-    var num_open_brackets: Int = 0
-    var prev_sep: Int = 0
+    var numOpenBrackets: Int = 0
+    var prevSep: Int = 0
     for (i <- 1 to str.length() - 2) {
       if (str(i) == '(' || str(i) == '{' || str(i) == '[') {
-        num_open_brackets += 1
+        numOpenBrackets += 1
       } else if (str(i) == ')' || str(i) == ']' || str(i) == '}') {
-        num_open_brackets -= 1
-      } else if (str(i) == sep && num_open_brackets == 0) {
-        args = args :+ str.substring(prev_sep + 1, i)
-        prev_sep = i
+        numOpenBrackets -= 1
+      } else if (str(i) == sep && numOpenBrackets == 0) {
+        args = args :+ str.substring(prevSep + 1, i)
+        prevSep = i
       }
     }
-    args = args :+ str.substring(prev_sep + 1, str.length() - 1)
+    args = args :+ str.substring(prevSep + 1, str.length() - 1)
     return args
   }
 
   // @TODO: expand the piecewise and sums in the equation
-  def expand_equation(eq_str: String): String = {
-    var eq = eq_str.replaceAll(" ", "")
+  def expandEquation(eqStr: String): String = {
+    var eq = eqStr.replaceAll(" ", "")
 
     // find the outermost Sum
     var firstSumLoc: Int = eq.indexOf("Sum")
@@ -179,75 +179,75 @@ object Basecases {
     )
 
     // finding the variable iteration for the sum
-    var iter_var: String = args(1).substring(1, args(1).indexOf(','))
+    var iterVar: String = args(1).substring(1, args(1).indexOf(','))
 
     // check if there is a piecewise term in the argument
-    var num_open_brackets: Int = 0
-    var modified_arg0: StringBuilder = new StringBuilder(args(0))
+    numOpenBrackets = 0
+    var modifiedArg0: StringBuilder = new StringBuilder(args(0))
     for (index <- 0 to args(0).length() - 1) {
-      modified_arg0(index) match {
-        case '{' => num_open_brackets += 1
-        case '}' => num_open_brackets -= 1
+      modifiedArg0(index) match {
+        case '{' => numOpenBrackets += 1
+        case '}' => numOpenBrackets -= 1
         case '*' =>
-          if (num_open_brackets == 0) {
-            modified_arg0.replace(index, index + 1, "_")
+          if (numOpenBrackets == 0) {
+            modifiedArg0.replace(index, index + 1, "_")
           }
         case _ =>
       }
     }
-    var prod_terms: Array[String] = modified_arg0.split('_')
-    val pw_index: Int = prod_terms.indexWhere(
+    var prodTerms: Array[String] = modifiedArg0.split('_')
+    val pwIndex: Int = prodTerms.indexWhere(
       _.matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]")
     )
 
     // check if the sum can be expanded
-    if (pw_index != -1) {
+    if (pwIndex != -1) {
       // find the inequality inside the piecewise function
-      val piecewise: String = prod_terms(pw_index)
-      var ineq_args: List[String] = Basecases.findArgs(
+      val piecewise: String = prodTerms(pwIndex)
+      var ineqArgs: List[String] = Basecases.findArgs(
         ("Inequality\\[[a-zA-Z0-9,]*\\]".r)
           .findFirstIn(piecewise)
           .getOrElse("")
           .replaceAll("Inequality", "")
       )
-      var rest: String = (prod_terms.slice(0, pw_index) ++ prod_terms.slice(
-        pw_index + 1,
-        prod_terms.length
+      var rest: String = (prodTerms.slice(0, pwIndex) ++ prodTerms.slice(
+        pwIndex + 1,
+        prodTerms.length
       )).mkString("*")
-      if (ineq_args.length == 5) {
+      if (ineqArgs.length == 5) {
         // find the inequality constraints on the summation variable
-        if (ineq_args(2) != iter_var)
+        if (ineqArgs(2) != iterVar)
           return eq
-        var lower_bound: Int = 0
-        var upper_bound: Int = 0
-        (ineq_args(1), ineq_args(3)) match {
+        var lowerBound: Int = 0
+        var upperBound: Int = 0
+        (ineqArgs(1), ineqArgs(3)) match {
           case ("LessEqual", "Less") =>
-            lower_bound = ineq_args(0).toInt;
-            upper_bound = ineq_args(4).toInt - 1
+            lowerBound = ineqArgs(0).toInt;
+            upperBound = ineqArgs(4).toInt - 1
           case ("Less", "Less") =>
-            lower_bound = ineq_args(0).toInt + 1;
-            upper_bound = ineq_args(4).toInt - 1
+            lowerBound = ineqArgs(0).toInt + 1;
+            upperBound = ineqArgs(4).toInt - 1
           case ("LessEqual", "LessEqual") =>
-            lower_bound = ineq_args(0).toInt; upper_bound = ineq_args(4).toInt
+            lowerBound = ineqArgs(0).toInt; upperBound = ineqArgs(4).toInt
           case ("Less", "LessEqual") =>
-            lower_bound = ineq_args(0).toInt + 1;
-            upper_bound = ineq_args(4).toInt
+            lowerBound = ineqArgs(0).toInt + 1;
+            upperBound = ineqArgs(4).toInt
 
           case ("GreaterEqual", "Greater") =>
-            lower_bound = ineq_args(4).toInt + 1;
-            upper_bound = ineq_args(0).toInt
+            lowerBound = ineqArgs(4).toInt + 1;
+            upperBound = ineqArgs(0).toInt
           case ("Greater", "Greater") =>
-            lower_bound = ineq_args(4).toInt + 1;
-            upper_bound = ineq_args(0).toInt - 1
+            lowerBound = ineqArgs(4).toInt + 1;
+            upperBound = ineqArgs(0).toInt - 1
           case ("GreaterEqual", "GreaterEqual") =>
-            lower_bound = ineq_args(4).toInt; upper_bound = ineq_args(0).toInt
+            lowerBound = ineqArgs(4).toInt; upperBound = ineqArgs(0).toInt
           case ("Greater", "GreaterEqual") =>
-            lower_bound = ineq_args(4).toInt;
-            upper_bound = ineq_args(0).toInt - 1
+            lowerBound = ineqArgs(4).toInt;
+            upperBound = ineqArgs(0).toInt - 1
         }
         var terms: List[String] = List()
-        for (i <- lower_bound to upper_bound) {
-          terms = terms :+ rest.replaceAll(iter_var, i.toString())
+        for (i <- lowerBound to upperBound) {
+          terms = terms :+ rest.replaceAll(iterVar, i.toString())
         }
         var prefix = firstSumLoc match {
           case 0 => ""
@@ -258,7 +258,7 @@ object Basecases {
           suffix = eq.substring(sumClosingLoc + 1)
         }
 
-        return Basecases.expand_equation(
+        return Basecases.expandEquation(
           prefix + "(" + terms.mkString("+") + ")" + suffix
         )
       } else {
@@ -273,9 +273,9 @@ object Basecases {
   ): Set[String] = {
     var baseCases: mutable.Set[String] = mutable.Set()
     for (dependency <- dependencies) {
-      for (rhs_func <- dependency._2) {
-        if (rhs_func.funcName == dependency._1.funcName) {
-          for (arg <- rhs_func.args) {
+      for (rhsFunc <- dependency._2) {
+        if (rhsFunc.funcName == dependency._1.funcName) {
+          for (arg <- rhsFunc.args) {
             if (arg.terms.length > 2)
               throw new IllegalStateException(
                 "This type of term not supported : " + arg.toString()
@@ -290,7 +290,7 @@ object Basecases {
             }
           }
         } else {
-          for (arg <- rhs_func.args) {
+          for (arg <- rhsFunc.args) {
             if (arg.terms.length > 2)
               throw new IllegalStateException(
                 "This type of term not supported : " + arg.toString()
@@ -301,7 +301,7 @@ object Basecases {
                 baseCases += dependency._1
                   .toString()
                   .replace(arg.terms(0)._2, l.toString())
-                baseCases += (rhs_func.funcName + "[" + rhs_func.args
+                baseCases += (rhsFunc.funcName + "[" + rhsFunc.args
                   .map(_.terms(0)._2)
                   .mkString(",") + "]").replace(arg.terms(0)._2, l.toString())
               }
@@ -318,16 +318,16 @@ object Basecases {
   }
 
   def transformClauses(
-      func_call: FuncCall,
+      funcCall: FuncCall,
       wcnf: WeightedCNF,
       constDomain: Domain,
       varDomainMap: collection.mutable.Map[String, Domain]
   ): ListBuffer[(WeightedCNF, String)] = {
-    var transformed_clauses: ListBuffer[(WeightedCNF, String)] = ListBuffer()
+    var transformedClauses: ListBuffer[(WeightedCNF, String)] = ListBuffer()
     var const: Int = -1
 
     // finding the constant
-    for (arg <- func_call.args) {
+    for (arg <- funcCall.args) {
       if (arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")) {
         if (const != -1) {
           return ListBuffer()
@@ -344,28 +344,27 @@ object Basecases {
       case 0 => {
         val domainVarMap: collection.mutable.Map[Domain, String] =
           varDomainMap.flatMap { case (key, value) => Seq(value -> key) }
-        var simplified_clauses: ListBuffer[Clause] = ListBuffer()
-        var removed_predicates: Set[Predicate] = Set()
-        var retained_predicates: Set[Predicate] = Set()
-        var contains_null_const: Boolean = false
-        for (clause: Clause <- wcnf.cnf.self if !contains_null_const) {
-          // check if null_dom is present in the domain constraints of the clause
+        var simplifiedClauses: ListBuffer[Clause] = ListBuffer()
+        var containsNullConst: Boolean = false
+        for (clause: Clause <- wcnf.cnf.self if !containsNullConst) {
+          /* check if the null domain is present in the domain constraints of
+           * the clause */
           if (clause.constrs.elemConstrs.domains.contains(constDomain)) {
             // check if there is a predicate none of  whose arguments belong to the null domain
-            val new_posList: ListBuffer[Atom] = ListBuffer()
-            val new_negList: ListBuffer[Atom] = ListBuffer()
-            for (atom <- clause.atoms if !contains_null_const) {
-              var contains_null_dom: Boolean = false
-              for (arg <- atom.args if !contains_null_const) {
+            val newPosList: ListBuffer[Atom] = ListBuffer()
+            val newNegList: ListBuffer[Atom] = ListBuffer()
+            for (atom <- clause.atoms if !containsNullConst) {
+              var containsNullDom: Boolean = false
+              for (arg <- atom.args if !containsNullConst) {
                 arg match {
                   case variable: Var => {
                     if (clause.constrs.elemConstrs(variable) == constDomain) {
-                      contains_null_dom = true
+                      containsNullDom = true
                     }
                   }
                   case const: Constant => {
                     if (const.domain == constDomain) {
-                      contains_null_const = true
+                      containsNullConst = true
                     }
                   }
                   case _ => {
@@ -375,28 +374,27 @@ object Basecases {
                   }
                 }
               }
-              if (!contains_null_dom && !contains_null_const) {
-                new_posList += atom
-                if (new_posList.size == 1) {
-                  new_negList += atom
+              if (!containsNullDom && !containsNullConst) {
+                newPosList += atom
+                if (newPosList.size == 1) {
+                  newNegList += atom
                 }
               }
             }
-            val new_cosntr =
-              Constraints(elemConstrs = clause.constrs.elemConstrs)
-            val new_clause: Clause =
-              Clause(new_posList.toList, new_negList.toList, new_cosntr)
-            if (new_posList.size != 0 || new_negList.size != 0) {
-              simplified_clauses += new_clause
-            }
+            if (newPosList.size != 0 || newNegList.size != 0)
+              simplifiedClauses += Clause(
+                newPosList.toList,
+                newNegList.toList,
+                Constraints(elemConstrs = clause.constrs.elemConstrs)
+              )
           } else {
-            simplified_clauses += clause
+            simplifiedClauses += clause
           }
         }
-        var multiplier: String = (if (contains_null_const) "0" else "1")
-        transformed_clauses += ((
+        var multiplier: String = (if (containsNullConst) "0" else "1")
+        transformedClauses += ((
           new WeightedCNF(
-            new CNF(simplified_clauses.toList),
+            new CNF(simplifiedClauses.toList),
             wcnf.domainSizes,
             wcnf.predicateWeights,
             wcnf.conditionedAtoms,
@@ -406,9 +404,9 @@ object Basecases {
         ))
       }
       case 1 => {
-        val constants_in_unit_domain: immutable.Set[Constant] =
+        val constantsInUnitDomain: immutable.Set[Constant] =
           wcnf.cnf.constants.filter(_.domain == constDomain)
-        if (constants_in_unit_domain.size <= 1) {
+        if (constantsInUnitDomain.size <= 1) {
           val existingIndices = wcnf.cnf.constants
             .filter {
               _.value.isInstanceOf[BaseCaseIndexedConstant]
@@ -418,20 +416,20 @@ object Basecases {
           val newIndex =
             Stream.from(0).find { index => !existingIndices(index) }.get
           val c = new Constant(new BaseCaseIndexedConstant(newIndex))
-          val new_const: Constant = constants_in_unit_domain.size match {
+          val newConst: Constant = constantsInUnitDomain.size match {
             case 0 => c.setDomain(constDomain)
-            case 1 => constants_in_unit_domain.toList(0)
+            case 1 => constantsInUnitDomain.toList(0)
           }
-          val new_clauses = wcnf.cnf.clauses.flatMap { clause =>
+          val newClauses = wcnf.cnf.clauses.flatMap { clause =>
             val vars = clause.literalVariables.filter {
               clause.constrs.domainFor(_).equals(constDomain)
             }
-            val contradicting_ineq = clause.constrs.ineqConstrs.filter((t) => {
+            val contradictingIneq = clause.constrs.ineqConstrs.filter((t) => {
               vars.contains(t._1)
             })
-            var new_clause = clause
-            if (contradicting_ineq.size != 0) {
-              new_clause = new Clause(
+            var newClause = clause
+            if (contradictingIneq.size != 0) {
+              newClause = new Clause(
                 clause.posLits ++ clause.negLits,
                 clause.posLits ++ clause.negLits,
                 new Constraints(
@@ -442,19 +440,19 @@ object Basecases {
                 )
               )
             }
-            new_clause = new_clause.substitute((variable: Var) =>
+            newClause = newClause.substitute((variable: Var) =>
               if (vars.contains(variable)) {
-                new_const
+                newConst
               } else {
                 variable
               }
             )
-            List(new_clause)
+            List(newClause)
           }
           val multiplier: String = "1"
-          transformed_clauses += ((
+          transformedClauses += ((
             new WeightedCNF(
-              new CNF(new_clauses),
+              new CNF(newClauses),
               wcnf.domainSizes,
               wcnf.predicateWeights,
               wcnf.conditionedAtoms,
@@ -463,7 +461,7 @@ object Basecases {
             multiplier
           ))
         } else {
-          transformed_clauses += ((wcnf, "0"))
+          transformedClauses += ((wcnf, "0"))
         }
       }
       case _ => {
@@ -472,7 +470,7 @@ object Basecases {
         )
       }
     }
-    transformed_clauses
+    transformedClauses
   }
 
 }
@@ -611,7 +609,7 @@ case class Equations(val equations: List[String]) {
   }
 
   lazy val expanded: Equations = Equations(
-    equations.map(eq => Basecases.expand_equation(eq.replaceAll(" ", "")))
+    equations.map(eq => Basecases.expandEquation(eq.replaceAll(" ", "")))
   )
 
   // TODO (Paulius): add an empty constructor to Equations and use it instead of List()

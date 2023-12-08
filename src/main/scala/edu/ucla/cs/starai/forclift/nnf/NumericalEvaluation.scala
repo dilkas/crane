@@ -15,6 +15,7 @@ import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.Domain
 
 // TODO (Paulius): use the makefile or something similar
+// TODO (Paulius): instead of underscores, use camel case
 object NumericalEvaluation extends LazyLogging {
   val CPP_COMPILER: String = "g++"
   val COMPILE_FLAGS: Array[String] = Array("-w", "-g", "-Wall", "-std=c++17")
