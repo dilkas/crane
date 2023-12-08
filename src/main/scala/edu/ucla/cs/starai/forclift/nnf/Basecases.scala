@@ -25,7 +25,54 @@ import scala.collection.JavaConversions._
   * @param terms
   *   represents a function argument of the form x1-x2 or x1-10-x2 or x2-0
   */
-class FuncArgument(var terms: List[(Boolean, String)]) {
+class FuncArgument(val terms: List[(Boolean, String)]) {
+
+  override def toString(): String = terms.map(_._2).mkString("-")
+}
+
+object FuncArgument {
+
+  def apply(argStr: String) = {
+    var temp = removeParentheses(argStr).split('-')
+    val term_buf: ListBuffer[(Boolean, String)] = ListBuffer()
+    if (argStr(0) == '-') {
+      val plus_loc = argStr.indexOf('+')
+      val plus_term =
+        ("x?[0-9]+".r).findFirstIn(argStr.substring(plus_loc)).getOrElse("")
+      if (plus_term == "") {
+        throw new IllegalStateException("Invalid argument: " + argStr)
+      }
+      term_buf += ((true, plus_term))
+      for (t <- 0 to temp.length - 1)
+        if (temp(t) != "")
+          term_buf += ((false, temp(t).split('+')(0)))
+    } else {
+      term_buf += ((true, temp(0)))
+      for (t <- 1 to temp.length - 1)
+        term_buf += ((false, temp(t)))
+    }
+
+    // simplifying in case multiple arguments are integers
+    var const_term: Int = 0
+    var simplified_terms: ListBuffer[(Boolean, String)] = ListBuffer()
+    for ((b, s) <- term_buf) {
+      if (s.matches("[0-9]+")) {
+        b match {
+          case true  => const_term = const_term + s.toInt
+          case false => const_term = const_term - s.toInt
+        }
+      } else {
+        simplified_terms += ((b, s))
+      }
+    }
+    const_term.signum match {
+      case -1 => simplified_terms += ((false, (-const_term).toString()))
+      case 1  => simplified_terms += ((true, const_term.toString()))
+      case _ =>
+        if (simplified_terms.size == 0) { simplified_terms += ((true, "0")) }
+    }
+    new FuncArgument(simplified_terms.toList)
+  }
 
   def removeParentheses(exp: String): String = {
     var ans: StringBuilder = new StringBuilder()
@@ -58,78 +105,22 @@ class FuncArgument(var terms: List[(Boolean, String)]) {
       return ans.substring(1)
     return ans.toString()
   }
-
-  def parseString(arg_str: String): Unit = {
-    var temp = removeParentheses(arg_str).split('-')
-    val term_buf: ListBuffer[(Boolean, String)] = ListBuffer()
-    if (arg_str(0) == '-') {
-      val plus_loc = arg_str.indexOf('+')
-      val plus_term =
-        ("x?[0-9]+".r).findFirstIn(arg_str.substring(plus_loc)).getOrElse("")
-      if (plus_term == "") {
-        throw new IllegalStateException("Invalid argument: " + arg_str)
-      }
-      term_buf += ((true, plus_term))
-      for (t <- 0 to temp.length - 1)
-        if (temp(t) != "")
-          term_buf += ((false, temp(t).split('+')(0)))
-    } else {
-      term_buf += ((true, temp(0)))
-      for (t <- 1 to temp.length - 1)
-        term_buf += ((false, temp(t)))
-    }
-
-    // simplifying in case multiple arguments are integers
-    var const_term: Int = 0
-    var simplified_terms: ListBuffer[(Boolean, String)] = ListBuffer()
-    for ((b, s) <- term_buf) {
-      if (s.matches("[0-9]+")) {
-        b match {
-          case true  => const_term = const_term + s.toInt
-          case false => const_term = const_term - s.toInt
-        }
-      } else {
-        simplified_terms += ((b, s))
-      }
-    }
-    const_term.signum match {
-      case -1 => simplified_terms += ((false, (-const_term).toString()))
-      case 1  => simplified_terms += ((true, const_term.toString()))
-      case _ =>
-        if (simplified_terms.size == 0) { simplified_terms += ((true, "0")) }
-    }
-    terms = simplified_terms.toList
-  }
-
-  def this(arg: String) = {
-    this(List())
-    parseString(arg)
-  }
-
-  override def toString(): String = {
-    return terms.map(_._2).mkString("-")
-  }
 }
 
-// represent a function call of the form f1(x1, x2-3, ..)
-class FuncCall(var funcName: String, var args: List[FuncArgument]) {
+/** Represents a function call of the form f1(x1, x2-3, ...) */
+class FuncCall(val funcName: String, val args: List[FuncArgument]) {
+  override def toString(): String =
+    funcName + "[" + args.map(_.toString).mkString(",") + "]"
+}
 
-  def parseString(call: String): Unit = {
-    funcName = call.substring(0, call.indexOf('['))
-    args = call
+object FuncCall {
+  def apply(call: String) = {
+    val args = call
       .substring(call.indexOf('[') + 1, call.length() - 1)
       .split(',')
-      .map(str => new FuncArgument(str.replaceAll("\\s", "")))
+      .map(str => FuncArgument(str.replaceAll("\\s", "")))
       .toList
-  }
-
-  def this(call: String) = {
-    this("", List())
-    parseString(call)
-  }
-
-  override def toString(): String = {
-    return funcName + "[" + args.map(_.toString()).mkString(",") + "]"
+    new FuncCall(call.substring(0, call.indexOf('[')), args)
   }
 }
 
@@ -638,14 +629,14 @@ case class Equations(val equations: List[String]) {
         expanded.findFunctionDependency
       )
     ) {
-      val lhsCall: FuncCall = new FuncCall(baseCaseLhs)
+      val lhsCall = FuncCall(baseCaseLhs)
       val funcSignatureStr: String = startsWith(lhsCall.funcName)
-      val signature: FuncCall = new FuncCall(
+      println("funcSignatureStr: " + funcSignatureStr)
+      val signature = FuncCall(
         funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
       )
       println(
-        "signature: " + signature
-          .toString() + ", base case: " + lhsCall.toString()
+        "signature: " + signature.toString + ", base case: " + lhsCall.toString
       )
       val diffIndex: Int =
         signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
@@ -755,13 +746,11 @@ case class Equations(val equations: List[String]) {
     var dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]] =
       Map()
     for (equation: String <- equations) {
-      var lhs: FuncCall = new FuncCall(
-        equation.split('=')(0).replaceAll("\\s", "")
-      )
+      var lhs = FuncCall(equation.split('=')(0).replaceAll("\\s", ""))
       var dep: scala.collection.immutable.Set[FuncCall] =
         ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
           .findAllIn(equation.split('=')(1).replaceAll("\\s", ""))
-          .map(str => new FuncCall(str))
+          .map(str => FuncCall(str))
           .toSet
       dependencies += (lhs -> dep)
     }
