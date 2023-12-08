@@ -133,34 +133,8 @@ class FuncCall(var funcName: String, var args: List[FuncArgument]) {
   }
 }
 
+// TODO (Paulius): remove this object
 object Basecases {
-
-  /** Given a list of recursive equations, it finds the function call on the LHS
-    * and the function calls on the rhs, i.e. those required to find the lhs.
-    *
-    * @param equations
-    *   list of equations.
-    * @return
-    *   a map of the dependencies of each function
-    */
-  def findFunctionDependency(
-      equations: List[String]
-  ): Map[FuncCall, scala.collection.immutable.Set[FuncCall]] = {
-    var dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]] =
-      Map()
-    for (equation: String <- equations) {
-      var lhs: FuncCall = new FuncCall(
-        equation.split('=')(0).replaceAll("\\s", "")
-      )
-      var dep: scala.collection.immutable.Set[FuncCall] =
-        ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
-          .findAllIn(equation.split('=')(1).replaceAll("\\s", ""))
-          .map(str => new FuncCall(str))
-          .toSet
-      dependencies += (lhs -> dep)
-    }
-    return dependencies
-  }
 
   def findArgs(call_str: String, sep: Char = ','): List[String] = {
     val str = call_str.replaceAll(" ", "")
@@ -209,7 +183,7 @@ object Basecases {
     }
 
     // finding the arguments of Sum
-    var args: List[String] = findArgs(
+    var args: List[String] = Basecases.findArgs(
       eq.substring(firstSumLoc + 3, sumClosingLoc + 1)
     )
 
@@ -239,7 +213,7 @@ object Basecases {
     if (pw_index != -1) {
       // find the inequality inside the piecewise function
       val piecewise: String = prod_terms(pw_index)
-      var ineq_args: List[String] = findArgs(
+      var ineq_args: List[String] = Basecases.findArgs(
         ("Inequality\\[[a-zA-Z0-9,]*\\]".r)
           .findFirstIn(piecewise)
           .getOrElse("")
@@ -293,7 +267,7 @@ object Basecases {
           suffix = eq.substring(sumClosingLoc + 1)
         }
 
-        return expand_equation(
+        return Basecases.expand_equation(
           prefix + "(" + terms.mkString("+") + ")" + suffix
         )
       } else {
@@ -510,175 +484,58 @@ object Basecases {
     transformed_clauses
   }
 
-  def findBaseCases(
-      equations: List[String],
-      clauseFuncMap: collection.mutable.Map[String, List[Clause]],
-      varDomainMap: collection.mutable.Map[String, Domain],
-      wcnf: WeightedCNF
-  ): List[String] = {
-    println("Equations: " + equations.toString())
-    var expandedEquations: List[String] =
-      equations.map(eq => expand_equation(eq.replaceAll(" ", "")))
-    val baseCases: ListBuffer[String] = ListBuffer()
+}
 
-    for (
-      baseCaseLhs <- getSufficientBaseCaseSet(
-        findFunctionDependency(expandedEquations)
-      )
-    ) {
-      val lhsCall: FuncCall = new FuncCall(baseCaseLhs)
-      val funcSignatureStr: String =
-        expandedEquations.find(_.startsWith(lhsCall.funcName)) match {
-          case Some(value: String) => value
-          case _ =>
-            throw new IllegalStateException(
-              "No equation found for function " + lhsCall.funcName
-            )
-        }
-      val signature: FuncCall = new FuncCall(
-        funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
-      )
-      println(
-        "signature: " + signature
-          .toString() + ", base case: " + lhsCall.toString()
-      )
-      val diffIndex: Int =
-        signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
-          case ((a, i), b) => a.terms(0)._2 != b.terms(0)._2
-        }
-      val constDomain: Domain = varDomainMap(
-        signature.args(diffIndex).terms(0)._2
-      )
-      val transformedWcnf: ListBuffer[(WeightedCNF, String)] =
-        transformClauses(
-          lhsCall,
-          new WeightedCNF(
-            new CNF(clauseFuncMap(lhsCall.funcName)),
-            wcnf.domainSizes,
-            wcnf.predicateWeights,
-            wcnf.conditionedAtoms,
-            wcnf.compilerBuilder
-          ),
-          constDomain,
-          varDomainMap
-        )
+case class Equations(val equations: List[String]) {
 
-      for (
-        (simplifiedWcnf: WeightedCNF, multiplier: String) <- transformedWcnf
-      ) {
-        baseCases ++= findBaseCases2(
-          expandedEquations,
-          lhsCall,
-          constDomain,
-          signature.funcName,
-          simplifiedWcnf,
-          multiplier,
-          HashBiMap.create(varDomainMap)
-        )
-      }
-    }
-    baseCases.toList
-  }
+  def +(other: String): Equations = Equations(equations :+ other)
+  def ++(other: List[String]): Equations = Equations(equations ++ other)
+  def ++(other: Equations): Equations = Equations(equations ++ other.equations)
 
-  /* TODO (Paulius):
-  0) extract more functions,
-  1) better name,
-  2) shorter list of arguments (at most 4)
-   */
-  def findBaseCases2(
-      expandedEquations: List[String],
-      lhsCall: FuncCall,
-      constDomain: Domain,
-      functionName: String,
-      simplifiedWcnf: WeightedCNF,
-      multiplier: String,
-      varDomainMap: BiMap[String, Domain]
-  ): ListBuffer[String] = if (multiplier == "0") {
-    ListBuffer(lhsCall.toString + " = 0")
-  } else {
-    var newEquations: ListBuffer[String] = ListBuffer()
-    if (simplifiedWcnf.cnf.size == 0) {
-      /* If there are no clauses after simplification, then there is
-                 only one satisfying model, so no need to call Crane. This can
-                 happen only if a domain is made empty. */
-      val indexOfFunc = expandedEquations.indexWhere(_.startsWith(functionName))
-      val indexOfEquals = expandedEquations(indexOfFunc).indexOf('=')
-      newEquations += expandedEquations(indexOfFunc)
-        .substring(0, indexOfEquals)
-        .replaceAll(functionName, "f0") + "= 1"
-    } else {
-      // finding the base cases using Crane
-      newEquations ++= simplifiedWcnf.SimplifyInWolfram
-      newEquations.transform(_.replaceAll(" ", ""))
-      /* Change the variable names to the previous ones. Do this only
-              for the free variables, i.e. those occuring as parameters for the
-              equation containing x0 on the LHS. If there is a collision,
-              resolve it by changing the other variable to a new one. */
-      var maxVarNumber = (expandedEquations ++ newEquations)
-        .map(("x[0-9]+".r).findAllIn(_))
-        .flatten
-        .map(v => v.substring(1).toInt)
-        .max
-      val indexOfF0 = newEquations.indexWhere(_.startsWith("f0"))
-      val indexOfEquals = newEquations(indexOfF0).indexOf('=')
-      val freeVars: scala.collection.immutable.Set[String] =
-        newEquations(indexOfF0)
-          .substring(3, indexOfEquals - 1)
-          .split(',')
-          .map(_.replaceAll(" ", ""))
-          .toSet
-      val f0BoundedVars: scala.collection.immutable.Set[String] =
-        ("x[0-9]+".r)
-          .findAllIn(newEquations(indexOfF0))
-          .toSet
-          .diff(freeVars)
-      for (freeVar <- freeVars) {
-        val toReplace: String =
-          varDomainMap.inverse.get(simplifiedWcnf.varDomainMap(freeVar))
-        if (toReplace != freeVar) {
-          // check if there is a collision and handle it
-          if (f0BoundedVars.contains(toReplace)) {
-            // get a new variable name
-            maxVarNumber += 1
-            newEquations(indexOfF0).replaceAll(
-              toReplace,
-              "x" + maxVarNumber.toString()
-            )
-          }
-        }
-        newEquations(indexOfF0).replaceAll(
-          freeVar,
-          "y" + toReplace.substring(1)
-        )
-      }
-      newEquations(indexOfF0).replace('y', 'x')
-
-      /* Make the occurrences of f0 in the rest of the equations in
+  /* Make the occurrences of f0 in the rest of the equations in
               `newEquations` consistent with the convention used on `functionName` in
               the previous equations */
-      val ourFuncArgs: Array[String] = findArgs(
-        newEquations(indexOfF0).substring(
-          newEquations(indexOfF0).indexOf('['),
-          newEquations(indexOfF0).indexOf('=')
+  def changeArguments(
+      indexOfF0: Int,
+      lhsCall: FuncCall,
+      varDomainMap: BiMap[String, Domain],
+      varDomainMap2: Map[String, Domain],
+      constDomain: Domain
+  ): Equations = {
+    val ourFuncArgs: Array[String] = Basecases
+      .findArgs(
+        equations(indexOfF0).substring(
+          equations(indexOfF0).indexOf('['),
+          equations(indexOfF0).indexOf('=')
         )
-      ).toArray
-      val actualFuncArgs: Array[String] = findArgs(
+      )
+      .toArray
+    val actualFuncArgs: Array[String] = Basecases
+      .findArgs(
         lhsCall.toString.substring(lhsCall.toString.indexOf('['))
-      ).toArray
+      )
+      .toArray
 
-      val indexMap: scala.collection.mutable.Map[Int, Int] = Map()
-      for (index <- 0 to ourFuncArgs.length - 1)
-        if (simplifiedWcnf.varDomainMap.keySet.contains(ourFuncArgs(index)))
-          if (simplifiedWcnf.varDomainMap(ourFuncArgs(index)) != constDomain)
-            indexMap += (index -> actualFuncArgs.indexOf(ourFuncArgs(index)))
+    val indexMap: scala.collection.mutable.Map[Int, Int] = Map()
+    for (index <- 0 to ourFuncArgs.length - 1)
+      if (
+        varDomainMap2.keySet.contains(ourFuncArgs(index)) && varDomainMap2(
+          ourFuncArgs(index)
+        ) != constDomain
+      )
+        indexMap += (index -> actualFuncArgs.indexOf(ourFuncArgs(index)))
 
-      newEquations.transform(
+    Equations(
+      equations.map(
         "f0\\[[x0-9,\\-\\+]*\\]".r.replaceAllIn(
           _,
           call => {
-            val args: Array[String] = findArgs(
-              call.toString().substring(2)
-            ).toArray.filter(varDomainMap(_) != constDomain)
+            val args: Array[String] = Basecases
+              .findArgs(
+                call.toString().substring(2)
+              )
+              .toArray
+              .filter(varDomainMap(_) != constDomain)
             var transformedArgs: Array[String] =
               actualFuncArgs.clone()
             for (index <- 0 to args.length - 1) {
@@ -688,41 +545,18 @@ object Basecases {
           }
         )
       )
-    }
-
-    val (newNewEquations, indexOfF0) =
-      changeFunctionNames(expandedEquations, newEquations, multiplier, lhsCall)
-    newEquations = newNewEquations
-
-    // find the constant
-    val const = lhsCall.args.find(arg =>
-      arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")
-    ) match {
-      case Some(value) => value.terms(0)._2.toInt
-      case _           => throw new IllegalStateException("No constant found")
-    }
-    newEquations(indexOfF0) = newEquations(indexOfF0).replaceAll(
-      varDomainMap.inverse.get(constDomain),
-      const.toString()
     )
-
-    newEquations
   }
 
   /* Change the name f0 to functionName and change the other function names
   (f1, f2, ...) too to some non-overlapping names */
   def changeFunctionNames(
-      expandedEquations: List[String],
-      newEquations: ListBuffer[String],
       multiplier: String,
-      lhsCall: FuncCall
-  ): (ListBuffer[String], Int) = {
-    val outputEquations = newEquations.clone()
-    var maxFuncNumber: Int = (expandedEquations ++ outputEquations)
-      .map(("f[0-9]+".r).findAllIn(_))
-      .flatten
-      .map(v => v.substring(1).toInt)
-      .max
+      lhsCall: FuncCall,
+      initialMaxFuncNumber: Int
+  ): (Equations, Int) = {
+    var maxFuncNumber = initialMaxFuncNumber
+    val outputEquations = equations.to[ListBuffer]
     for (
       funcName <- outputEquations
         .flatMap(("f[0-9]".r).findAllIn(_))
@@ -741,10 +575,228 @@ object Basecases {
                                 else "") + outputEquations(indexOfF0)
         .substring(indexOfEquals + 1) + (if (multiplier != "1") ")"
                                          else "")
-    (outputEquations, indexOfF0)
+    (Equations(outputEquations.to[List]), indexOfF0)
   }
 
-}
+  // TODO (Paulius): optimise what values are passed to this function
+  /* Change the variable names to the previous ones. Do this only
+              for the free variables, i.e. those occuring as parameters for the
+              equation containing x0 on the LHS. If there is a collision,
+              resolve it by changing the other variable to a new one. */
+  def changeVariableNames(
+      oldEquations: Equations,
+      varDomainMap: BiMap[String, Domain],
+      varDomainMap2: collection.mutable.Map[String, Domain]
+  ): (Equations, Int) = {
+    var maxVarNumber: Int = oldEquations.findMaxVarNumber.max(findMaxVarNumber)
+    val indexOfF0 = equations.indexWhere(_.startsWith("f0"))
+    var newValue = equations(indexOfF0)
+    val indexOfEquals = newValue.indexOf('=')
+    val freeVars: scala.collection.immutable.Set[String] =
+      newValue
+        .substring(3, indexOfEquals - 1)
+        .split(',')
+        .map(_.replaceAll(" ", ""))
+        .toSet
+    val f0BoundedVars: scala.collection.immutable.Set[String] =
+      ("x[0-9]+".r)
+        .findAllIn(newValue)
+        .toSet
+        .diff(freeVars)
+    for (freeVar <- freeVars) {
+      val toReplace = varDomainMap.inverse.get(varDomainMap2(freeVar))
+      if (toReplace != freeVar) {
+        // check if there is a collision and handle it
+        if (f0BoundedVars.contains(toReplace)) {
+          // get a new variable name
+          maxVarNumber += 1
+          newValue.replaceAll(toReplace, "x" + maxVarNumber.toString)
+        }
+      }
+      newValue.replaceAll(freeVar, "y" + toReplace.substring(1))
+    }
+    newValue.replace('y', 'x')
+    (updated(indexOfF0, newValue), indexOfF0)
+  }
 
-// class Equations(val equations: ListBuffer[String]) {
-// }
+  lazy val expanded: Equations = Equations(
+    equations.map(eq => Basecases.expand_equation(eq.replaceAll(" ", "")))
+  )
+
+  // TODO (Paulius): add an empty constructor to Equations and use it instead of List()
+
+  def findBaseCases(
+      clauseFuncMap: collection.mutable.Map[String, List[Clause]],
+      varDomainMap: collection.mutable.Map[String, Domain],
+      wcnf: WeightedCNF
+  ): List[String] = {
+    println("Equations: " + equations.toString())
+    var baseCases = Equations(List())
+
+    for (
+      baseCaseLhs <- Basecases.getSufficientBaseCaseSet(
+        expanded.findFunctionDependency
+      )
+    ) {
+      val lhsCall: FuncCall = new FuncCall(baseCaseLhs)
+      val funcSignatureStr: String = startsWith(lhsCall.funcName)
+      val signature: FuncCall = new FuncCall(
+        funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
+      )
+      println(
+        "signature: " + signature
+          .toString() + ", base case: " + lhsCall.toString()
+      )
+      val diffIndex: Int =
+        signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
+          case ((a, i), b) => a.terms(0)._2 != b.terms(0)._2
+        }
+      val constDomain: Domain = varDomainMap(
+        signature.args(diffIndex).terms(0)._2
+      )
+      val transformedWcnf: ListBuffer[(WeightedCNF, String)] =
+        Basecases.transformClauses(
+          lhsCall,
+          new WeightedCNF(
+            new CNF(clauseFuncMap(lhsCall.funcName)),
+            wcnf.domainSizes,
+            wcnf.predicateWeights,
+            wcnf.conditionedAtoms,
+            wcnf.compilerBuilder
+          ),
+          constDomain,
+          varDomainMap
+        )
+
+      for (
+        (simplifiedWcnf: WeightedCNF, multiplier: String) <- transformedWcnf
+      ) {
+        baseCases ++= expanded.findBaseCases2(
+          lhsCall,
+          constDomain,
+          signature.funcName,
+          simplifiedWcnf,
+          multiplier,
+          HashBiMap.create(varDomainMap)
+        )
+      }
+    }
+    baseCases.equations
+  }
+
+  /* TODO (Paulius):
+  0) extract more functions,
+  1) better name,
+  2) shorter list of arguments (at most 4)
+   */
+  def findBaseCases2(
+      lhsCall: FuncCall,
+      constDomain: Domain,
+      functionName: String,
+      simplifiedWcnf: WeightedCNF,
+      multiplier: String,
+      varDomainMap: BiMap[String, Domain]
+  ): Equations = if (multiplier == "0") {
+    Equations(List(lhsCall.toString + " = 0"))
+  } else {
+    var newEquations = Equations(List())
+    if (simplifiedWcnf.cnf.size == 0) {
+      /* If there are no clauses after simplification, then there is
+                 only one satisfying model, so no need to call Crane. This can
+                 happen only if a domain is made empty. */
+      val indexOfFunc = equations.indexWhere(_.startsWith(functionName))
+      val indexOfEquals = equations(indexOfFunc).indexOf('=')
+      newEquations += equations(indexOfFunc)
+        .substring(0, indexOfEquals)
+        .replaceAll(functionName, "f0") + "= 1"
+    } else {
+      // finding the base cases using Crane
+      newEquations ++= simplifiedWcnf.SimplifyInWolfram
+      val (newNewEquations, indexOfF0) = newEquations.removeSpaces
+        .changeVariableNames(this, varDomainMap, simplifiedWcnf.varDomainMap)
+      newEquations = newNewEquations
+      newEquations = newEquations.changeArguments(
+        indexOfF0,
+        lhsCall,
+        varDomainMap,
+        simplifiedWcnf.varDomainMap,
+        constDomain
+      )
+    }
+
+    val (newNewEquations, newIndexOfF0) = newEquations.changeFunctionNames(
+      multiplier,
+      lhsCall,
+      maxFuncNumber.max(newEquations.maxFuncNumber)
+    )
+    newEquations = newNewEquations
+
+    // find the constant
+    val const = lhsCall.args.find(arg =>
+      arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")
+    ) match {
+      case Some(value) => value.terms(0)._2.toInt
+      case _           => throw new IllegalStateException("No constant found")
+    }
+    newEquations.updated(
+      newIndexOfF0,
+      _.replaceAll(varDomainMap.inverse.get(constDomain), const.toString)
+    )
+  }
+
+  /** Finds the function call on the LHS and the function calls on the RHS,
+    * i.e. those required to find the LHS.
+    *
+    * @return
+    *   a map of the dependencies of each function
+    */
+  lazy val findFunctionDependency
+      : Map[FuncCall, scala.collection.immutable.Set[FuncCall]] = {
+    var dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]] =
+      Map()
+    for (equation: String <- equations) {
+      var lhs: FuncCall = new FuncCall(
+        equation.split('=')(0).replaceAll("\\s", "")
+      )
+      var dep: scala.collection.immutable.Set[FuncCall] =
+        ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
+          .findAllIn(equation.split('=')(1).replaceAll("\\s", ""))
+          .map(str => new FuncCall(str))
+          .toSet
+      dependencies += (lhs -> dep)
+    }
+    dependencies
+  }
+
+  lazy val maxFuncNumber: Int = equations
+    .map(("f[0-9]".r).findAllIn(_))
+    .flatten
+    .map(v => v.substring(1).toInt)
+    .max
+
+  lazy val findMaxVarNumber: Int = equations
+    .map(("x[0-9]+".r).findAllIn(_))
+    .flatten
+    .map(v => v.substring(1).toInt)
+    .max
+
+  lazy val removeSpaces: Equations = Equations(
+    equations.map(_.replaceAll(" ", ""))
+  )
+
+  def startsWith(funcName: String): String =
+    equations.find(_.startsWith(funcName)) match {
+      case Some(value: String) => value
+      case _ =>
+        throw new IllegalStateException(
+          "No equation found for function " + funcName
+        )
+    }
+
+  def updated(index: Int, value: String): Equations = Equations(
+    equations.updated(index, value)
+  )
+  def updated(index: Int, f: String => String): Equations =
+    updated(index, f(equations(index)))
+
+}

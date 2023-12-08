@@ -25,9 +25,7 @@ import edu.ucla.cs.starai.forclift.conditioning._
 import edu.ucla.cs.starai.forclift.propositional._
 import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
-import edu.ucla.cs.starai.forclift.nnf.visitors.LatexOutputVisitor
-import edu.ucla.cs.starai.forclift.nnf.Basecases
-import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
+import edu.ucla.cs.starai.forclift.nnf._
 
 case class WeightedCNF(
     cnf: CNF,
@@ -126,8 +124,7 @@ case class WeightedCNF(
       nnf
     )
     varDomainMap ++= varDomainMap
-    (recursions ++ Basecases.findBaseCases(
-      recursions,
+    (recursions ++ Equations(recursions).findBaseCases(
       clauseFuncMap,
       varDomainMap,
       this
