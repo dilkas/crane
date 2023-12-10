@@ -35,7 +35,7 @@ import edu.ucla.cs.starai.forclift.languages.ModelConverters._
 import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.nnf.visitors.SimplifyUsingWolfram
-import edu.ucla.cs.starai.forclift.nnf.Basecases
+import edu.ucla.cs.starai.forclift.nnf.Equations
 import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 
 /** Handle all debugging logic for CLI
@@ -146,14 +146,14 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     val equations = inputCLI.wcnfModel.SimplifyInWolfram
     logger.debug("")
     equations
-      .map(eqn => Basecases.expandEquation(eqn.replaceAll(" ", "")))
+      .map(eqn => Equations.expandEquation(eqn.replaceAll(" ", "")))
       .foreach { logger.debug(_) }
 
     NumericalEvaluation.generate_cpp_code(
       inputCLI.wcnfModel,
       inputCLI.wcnfModel.varDomainMap,
       equations
-        .map(eqn => Basecases.expandEquation(eqn.replaceAll(" ", "")))
+        .map(eqn => Equations.expandEquation(eqn.replaceAll(" ", "")))
         .toArray,
       inputCLI.parser.domains.reverse
     )
