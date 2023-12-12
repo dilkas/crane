@@ -434,9 +434,8 @@ object Equations {
 
     // find the outermost Sum
     var firstSumLoc: Int = eq.indexOf("Sum")
-    if (firstSumLoc == -1) {
+    if (firstSumLoc == -1)
       return eq
-    }
 
     // finding the closing bracket
     var sumClosingLoc: Int = 0
@@ -629,7 +628,7 @@ object Equations {
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
-    var simplifiedClauses: ListBuffer[Clause] = ListBuffer()
+    val simplifiedClauses: ListBuffer[Clause] = ListBuffer()
     var containsNullConst: Boolean = false
     for (clause: Clause <- wcnf.cnf.self if !containsNullConst) {
       /* check if the null domain is present in the domain constraints of
@@ -642,28 +641,22 @@ object Equations {
           var containsNullDom: Boolean = false
           for (arg <- atom.args if !containsNullConst) {
             arg match {
-              case variable: Var => {
-                if (clause.constrs.elemConstrs(variable) == constDomain) {
+              case variable: Var =>
+                if (clause.constrs.elemConstrs(variable) == constDomain)
                   containsNullDom = true
-                }
-              }
-              case const: Constant => {
-                if (const.domain == constDomain) {
+              case const: Constant =>
+                if (const.domain == constDomain)
                   containsNullConst = true
-                }
-              }
-              case _ => {
+              case _ =>
                 throw new IllegalStateException(
                   "Invalid member having trait Term"
                 )
-              }
             }
           }
           if (!containsNullDom && !containsNullConst) {
             newPosList += atom
-            if (newPosList.size == 1) {
+            if (newPosList.size == 1)
               newNegList += atom
-            }
           }
         }
         if (newPosList.size != 0 || newNegList.size != 0)
@@ -693,7 +686,9 @@ object Equations {
   ): (WeightedCNF, String) = {
     val constantsInUnitDomain: immutable.Set[Constant] =
       wcnf.cnf.constants.filter(_.domain == constDomain)
-    if (constantsInUnitDomain.size <= 1) {
+    if (constantsInUnitDomain.size > 1) {
+      (wcnf, "0")
+    } else {
       val existingIndices = wcnf.cnf.constants
         .filter {
           _.value.isInstanceOf[BaseCaseIndexedConstant]
@@ -702,7 +697,7 @@ object Equations {
         .toSet
       val newIndex =
         Stream.from(0).find { index => !existingIndices(index) }.get
-      val c = new Constant(new BaseCaseIndexedConstant(newIndex))
+      val c = new Constant(BaseCaseIndexedConstant(newIndex))
       val newConst: Constant = constantsInUnitDomain.size match {
         case 0 => c.setDomain(constDomain)
         case 1 => constantsInUnitDomain.toList(0)
@@ -727,14 +722,11 @@ object Equations {
             )
           )
         }
-        newClause = newClause.substitute((variable: Var) =>
-          if (vars.contains(variable)) {
-            newConst
-          } else {
-            variable
-          }
+        List(
+          newClause.substitute((variable: Var) =>
+            if (vars.contains(variable)) newConst else variable
+          )
         )
-        List(newClause)
       }
       val newWcnf = new WeightedCNF(
         new CNF(newClauses),
@@ -744,8 +736,6 @@ object Equations {
         wcnf.compilerBuilder
       )
       (newWcnf, "1")
-    } else {
-      (wcnf, "0")
     }
   }
 

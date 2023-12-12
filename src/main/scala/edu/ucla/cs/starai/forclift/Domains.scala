@@ -180,25 +180,6 @@ class RootDomain(
 
   def knownConstants = staticConstants ::: dynamicConstants.toList
 
-  //    override def hashCode: Int = {
-  //        //41 * staticConstants.foldLeft(1)((c,r) => 41*c + r.hashCode) + name.hashCode
-  ////        name.hashCode
-  //    }
-  //
-  //    /**
-  //     * equals is necessary to put it in a collection.
-  //     *
-  //     * @todo    Check with object equality chapter in Scala book
-  //     */
-  //    override def equals(other: Any): Boolean = {
-  //        this eq other
-  //        //this.hashCode == other.hashCode
-  ////        other match{
-  ////            case root: RootDomain => this.name == root.name
-  ////            case _ => false
-  ////        }
-  //    }
-
   def complement = EmptyDomain
 
   /** Assumes that all constants in excluded are part of the domain.
@@ -366,7 +347,7 @@ abstract class SubDomain(
       "Subdomains always have the same minimal set of excluded constants"
     )
     val nbExtraExcluded = excluded.size - excludedConstants.size
-    if (nbExtraExcluded == 0) {
+    if (nbExtraExcluded <= 0) {
       variableNames(this)
     } else {
       s"(${variableNames(this)} - $nbExtraExcluded)"

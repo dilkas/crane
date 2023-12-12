@@ -18,6 +18,7 @@ public:
   FunctionCall() = default;
   FunctionCall(const std::string &, const std::vector<Expression *> &);
   static FunctionCall *Create(const std::string &);
+  virtual ~FunctionCall() = default;
 
   std::unique_ptr<Token> Clone() const override {
     return std::unique_ptr<Token>(CloneFunctionCall());
@@ -42,6 +43,7 @@ public:
   void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
                     bool) const override;
 
+  // TODO (Paulius): this function cannot be used to print a function call
   std::string ToString(
       std::function<std::string(const Token &)> get_func_call) const override {
     return get_func_call(*this);

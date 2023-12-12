@@ -22,19 +22,19 @@ Expression::Expression(const std::string &exp_str) {
       // variable or function call
       int num_open_brack = 0;
       unsigned j = i;
-      bool isVar = false;
+      bool isVar = true;
       for (;
            j < exp_str.size() && !(num_open_brack == 1 && exp_str.at(j) == ']');
            j++) {
         if (num_open_brack == 0 && !isalnum(exp_str.at(j)) &&
-            exp_str.at(j) != '[') {
-          isVar = true;
+            exp_str.at(j) != '[')
           break;
-        }
-        if (exp_str.at(j) == '[')
+        if (exp_str.at(j) == '[') {
           num_open_brack++;
-        else if (exp_str.at(j) == ']')
+          isVar = false;
+        } else if (exp_str.at(j) == ']') {
           num_open_brack--;
+        }
       }
       if (isVar) {
         tokens_.emplace_back(Token::Create(exp_str.substr(i, j - i)));

@@ -22,6 +22,10 @@
 
 // TODO (Paulius): fix the function name formatting
 // TODO (Paulius): fix memory leaks
+// TODO (Paulius): smaller functions
+// TODO (Paulius): for the generated code, use "  " instead of "\t"
+// TODO (Paulius): for the generated code, add a space before "{"
+// TODO (Paulius): for the generated code, use "=" instead of "{}"
 
 /** Generates C++ definitions for the equations */
 std::string generate_function_def(std::string eqn) {

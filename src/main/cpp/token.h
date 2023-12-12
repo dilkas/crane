@@ -13,6 +13,7 @@ class Expression;
 class Token {
 public:
   Token() {}
+  virtual ~Token() {}
   virtual std::unique_ptr<Token> Clone() const = 0;
   static std::unique_ptr<Token> Create(char);
   static std::unique_ptr<Token> Create(int);

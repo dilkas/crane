@@ -1,5 +1,6 @@
 #include "token.h"
 
+#include <cassert>
 #include <cmath>
 #include <sstream>
 
@@ -71,6 +72,7 @@ void OperatorToken::Evaluate(
 
 void OperatorToken::HandlePower(
     std::stack<std::list<std::unique_ptr<Token>>> &exp_stack, bool) const {
+  assert(exp_stack.size() >= 2);
   std::list<std::unique_ptr<Token>> arg2 = std::move(exp_stack.top());
   exp_stack.pop();
   std::list<std::unique_ptr<Token>> arg1 = std::move(exp_stack.top());
