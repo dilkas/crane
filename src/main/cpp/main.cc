@@ -4,7 +4,7 @@
    function, specifically power. (2) Handle the sum function of wolfram
    (suggestion : define a separate function for it like power and Binomial) For
    (2), need to add support for the {...} list/tuple syntax of wolfram, or
-   replace it beforehand  by something else.
+   replace it beforehand by something else.
 */
 
 #include <fstream>
@@ -112,16 +112,14 @@ std::string generate_function_def(std::string eqn) {
 
 std::string generate_cpp_code(const std::vector<std::string> &equations) {
   std::stringstream code;
-  for (auto &eqn : equations) {
+  for (auto &eqn : equations)
     code << Expression(eqn.substr(0, eqn.find('=')))
                 .Front()
                 ->GetFunctionSignature("mpz_class", "unsigned long")
          << "\n";
-  }
   code << "\n";
-  for (auto &eqn : equations) {
+  for (auto &eqn : equations)
     code << generate_function_def(eqn) << "\n";
-  }
   return code.str();
 }
 

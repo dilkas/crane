@@ -23,7 +23,7 @@ import edu.ucla.cs.starai.forclift.nnf._
 
 /** Initialises 'nodes' to be the set of all direct successors of Ref nodes.
   *
-  * Needed by LatexOutputVisitor to know which nodes introduce new functions in
+  * Needed by OutputVisitors to know which nodes introduce new functions in
   * the algebraic description of the FCG.
   */
 class FunctionIntroductionFinder extends NnfVisitor[Unit, Unit] {

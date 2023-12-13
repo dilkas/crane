@@ -323,11 +323,7 @@ final case class Constraints(
       }
       dims = dims.tail
     }
-    if (nbGroundings == "") {
-      "1"
-    } else {
-      nbGroundings.dropRight(1)
-    }
+    if (nbGroundings == "") "1" else nbGroundings.dropRight(1)
   }
 
   // ========================= OUTPUT =========================================

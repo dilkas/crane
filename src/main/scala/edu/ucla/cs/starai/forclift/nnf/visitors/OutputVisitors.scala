@@ -30,8 +30,7 @@ import System._
 import java.io._
 import scala.util.matching.Regex
 
-// TODO (Paulius): update the description below. visitUnitLeaf needs to be
-// updated as well.
+// TODO (Paulius): remove the entire class and some of the toLatex methods?
 
 /** Constructs a list of Strings, where each String is a definition of a
   * function in LaTeX syntax.
@@ -354,12 +353,7 @@ object LatexOutputVisitor {
 
 }
 
-/** \===========================================================================
-  * New Code : Simplification using Wolfram Engine
-  * \===========================================================================
-  */
-
-class SimplifyUsingWolfram(
+class MainOutputVisitor(
     val initialDomains: Set[Domain],
     val directSuccessorsOfRef: Set[NNFNode],
     val predicateWeights: PredicateWeights
@@ -529,9 +523,6 @@ class SimplifyUsingWolfram(
 
   // ========================= SINK NODES =====================================
 
-  // TODO (Paulius): transfer this to LatexOutputVisitor as well (or maybe
-  // eliminate LatexOutputVisitor)
-
   /** Output [c <= variableNames(d) < c + v], where d is the unique domain, c is
     * the number of constants, and v is the number of variables.
     *
@@ -617,7 +608,7 @@ class SimplifyUsingWolfram(
 
 }
 
-object SimplifyUsingWolfram {
+object MainOutputVisitor {
 
   def apply(
       initialDomains: Set[Domain],
@@ -629,7 +620,7 @@ object SimplifyUsingWolfram {
       scala.collection.mutable.Map[String, List[Clause]],
       scala.collection.mutable.Map[String, Domain]
   ) = {
-    val visitor = new SimplifyUsingWolfram(
+    val visitor = new MainOutputVisitor(
       initialDomains,
       directSuccessorsOfRef,
       predicateWeights
@@ -646,7 +637,7 @@ object SimplifyUsingWolfram {
         (visitor
           .visit(source, (variableNames, predicateWeights))
           ._2)
-          .map(SimplifyInWolfram(_)),
+          .map(simplify(_)),
         visitor.clause_func_map,
         visitor.var_domain_map
       )
@@ -659,12 +650,11 @@ object SimplifyUsingWolfram {
         .map { variableNames(_) }
         .mkString(", ") + "] = " + expression) :: functions
       val simplified_equations: List[String] =
-        equations.map(SimplifyInWolfram(_))
+        equations.map(simplify(_))
       (simplified_equations, visitor.clause_func_map, visitor.var_domain_map)
     }
   }
 
-  var WolframPath = "wolframscript"
   var func_lhs: String = ""
 
   private def PreProcessInput(exp: String): String = {
@@ -676,7 +666,7 @@ object SimplifyUsingWolfram {
     return new_str
   }
 
-  def SimplifyInWolfram(exp: String): String = {
+  def simplify(exp: String): String = {
     func_lhs = ""
     var output_r = new ListBuffer[String]()
     var func_rhs: String = PreProcessInput(exp)

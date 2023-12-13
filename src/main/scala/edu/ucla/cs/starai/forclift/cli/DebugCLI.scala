@@ -34,7 +34,7 @@ import edu.ucla.cs.starai.forclift.PositiveUnitClause
 import edu.ucla.cs.starai.forclift.languages.ModelConverters._
 import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
-import edu.ucla.cs.starai.forclift.nnf.visitors.SimplifyUsingWolfram
+import edu.ucla.cs.starai.forclift.nnf.visitors.MainOutputVisitor
 import edu.ucla.cs.starai.forclift.nnf.Equations
 import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
 
@@ -143,7 +143,7 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     }
 
     // Print the final set of equations (assuming a sufficient verbosity level)
-    val equations = inputCLI.wcnfModel.SimplifyInWolfram
+    val equations = inputCLI.wcnfModel.simplified
     logger.debug("")
     equations
       .map(eqn => Equations.expandEquation(eqn.replaceAll(" ", "")))

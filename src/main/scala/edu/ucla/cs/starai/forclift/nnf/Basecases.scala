@@ -340,7 +340,7 @@ case class Equations(val equations: List[String] = List()) {
         .replaceAll(functionName, "f0") + "= 1"
     } else {
       // finding the base cases using Crane
-      newEquations ++= simplifiedWcnf.SimplifyInWolfram
+      newEquations ++= simplifiedWcnf.simplified
       val (newNewEquations, indexOfF0) = newEquations.removeSpaces
         .changeVariableNames(this, varDomainMap, simplifiedWcnf.varDomainMap)
       newEquations = newNewEquations
