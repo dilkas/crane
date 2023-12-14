@@ -109,7 +109,7 @@ case class WeightedCNF(
   var varDomainMap: collection.mutable.Map[String, Domain] =
     collection.mutable.Map()
 
-  lazy val simplified: List[String] = smoothNnfs.map { nnf =>
+  lazy val asEquations: List[String] = smoothNnfs.map { nnf =>
     val functionIntroductionFinder = new FunctionIntroductionFinder
     functionIntroductionFinder.visit(nnf)
     val (recursions, clauseFuncMap, varDomainMap): (

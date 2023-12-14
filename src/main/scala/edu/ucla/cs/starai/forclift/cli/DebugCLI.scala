@@ -143,18 +143,15 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     }
 
     // Print the final set of equations (assuming a sufficient verbosity level)
-    val equations = inputCLI.wcnfModel.simplified
+    val expandedEquations = inputCLI.wcnfModel.asEquations.map(eqn =>
+      Equations.expandEquation(eqn.replaceAll(" ", ""))
+    )
     logger.debug("")
-    equations
-      .map(eqn => Equations.expandEquation(eqn.replaceAll(" ", "")))
-      .foreach { logger.debug(_) }
+    expandedEquations.foreach { logger.debug(_) }
 
-    NumericalEvaluation.generate_cpp_code(
+    NumericalEvaluation.generateCppCode(
       inputCLI.wcnfModel,
-      inputCLI.wcnfModel.varDomainMap,
-      equations
-        .map(eqn => Equations.expandEquation(eqn.replaceAll(" ", "")))
-        .toArray,
+      expandedEquations.toArray,
       inputCLI.parser.domains.reverse
     )
 
@@ -162,7 +159,7 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     if (numerical) {
       logger.info("Compilation finished. Running the C++ program...")
       val ans: BigInt =
-        NumericalEvaluation.get_numerical_answer(inputCLI.wcnfModel.domainSizes)
+        NumericalEvaluation.getNumericalAnswer(inputCLI.wcnfModel.domainSizes)
       // Format the BigInt with commas
       val formattedNumber =
         ans.toString().reverse.grouped(3).mkString(",").reverse

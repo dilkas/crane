@@ -353,6 +353,8 @@ object LatexOutputVisitor {
 
 }
 
+// TODO (Paulius): some methods are quite long
+
 class MainOutputVisitor(
     val initialDomains: Set[Domain],
     val directSuccessorsOfRef: Set[NNFNode],
@@ -363,20 +365,21 @@ class MainOutputVisitor(
     ] {
 
   private[this] val functionNames = collection.mutable.Map[NNFNode, String]()
+
+  /** Maps function names to the corresponding logical formula */
+  private val functionNameToFormula =
+    scala.collection.mutable.Map[String, List[Clause]]()
+
   private[this] var nextFunctionIndex = 0
   private[this] var nextVariableIndex = 0
 
-  // Maps the function names to the formula of which the model count is
-  // represented by the function.
-  var clause_func_map: collection.mutable.Map[String, List[Clause]] =
-    scala.collection.mutable.Map()
-
-  // Maps the variable names to the domain of which the size the variable
-  // represents. Note that this stores references to the existing domain
-  // objects, and not copies of those objects.
-  var var_domain_map: collection.mutable.Map[String, Domain] =
-    scala.collection.mutable
-      .Map()
+  /** Maps variable names to their corresponding domains.
+    *
+    * Note that it stores references to the existing domain objects and not
+    * copies of those objects.
+    */
+  private val variablesToDomains =
+    scala.collection.mutable.Map[String, Domain]()
 
   override def visit(
       node: NNFNode,
@@ -386,11 +389,11 @@ class MainOutputVisitor(
     if (directSuccessorsOfRef.contains(node)) {
       // Start the definition of a new function
       val functionName = newFunctionName(node)
-      clause_func_map += (functionName -> node.cnf.toList)
+      functionNameToFormula += (functionName -> node.cnf.toList)
       val newVariableNames = variableNames.map { case (domain, name) =>
         if (node.domains.contains(domain) && name.contains(" ")) {
           val varName = newVariableName()
-          var_domain_map += (varName -> domain)
+          variablesToDomains += (varName -> domain)
           (domain, varName)
         } else {
           (domain, name)
@@ -463,7 +466,7 @@ class MainOutputVisitor(
     val (variableNames, predicateWeights) = params
     val n = variableNames(exists.domain)
     val m = newVariableName()
-    var_domain_map += (m -> exists.subdomain)
+    variablesToDomains += (m -> exists.subdomain)
     val newVariableNames =
       variableNames + (exists.subdomain -> m, exists.subdomain.complement -> s"($n - $m)")
     val (expression, functions) =
@@ -538,7 +541,8 @@ class MainOutputVisitor(
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
     val conditions = leaf.clause.hasConstraintSolution(variableNames)
-    if (conditions == "") ("1", Nil) else (s"Piecewise[{{1, Inequality[$conditions]}}, 0]", Nil)
+    if (conditions == "") ("1", Nil)
+    else (s"Piecewise[{{1, Inequality[$conditions]}}, 0]", Nil)
   }
 
   protected def visitFalse(
@@ -569,7 +573,7 @@ class MainOutputVisitor(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = ("1", Nil)
 
-  // There is significant overlap with visitSmoothingNode
+  // TODO (Paulius): There is significant overlap with visitSmoothingNode
   protected def visitUnitLeaf(
       leaf: UnitLeaf,
       params: (Map[Domain, String], PredicateWeights)
@@ -628,7 +632,7 @@ object MainOutputVisitor {
     val variableNames = Map(initialDomains.toSeq.zipWithIndex.map {
       case (d, i) => {
         val varName: String = visitor.newVariableName()
-        visitor.var_domain_map += (varName -> d)
+        visitor.variablesToDomains += (varName -> d)
         (d, varName)
       }
     }: _*)
@@ -638,47 +642,33 @@ object MainOutputVisitor {
           .visit(source, (variableNames, predicateWeights))
           ._2)
           .map(simplify(_)),
-        visitor.clause_func_map,
-        visitor.var_domain_map
+        visitor.functionNameToFormula,
+        visitor.variablesToDomains
       )
     } else {
       val functionName = visitor.newFunctionName(source)
-      visitor.clause_func_map += (functionName -> source.cnf.toList)
+      visitor.functionNameToFormula += (functionName -> source.cnf.toList)
       val (expression, functions) =
         visitor.visit(source, (variableNames, predicateWeights))
       val equations: List[String] = (functionName + "[" + initialDomains
         .map { variableNames(_) }
         .mkString(", ") + "] = " + expression) :: functions
-      val simplified_equations: List[String] =
-        equations.map(simplify(_))
-      (simplified_equations, visitor.clause_func_map, visitor.var_domain_map)
+      (
+        equations.map(simplify(_)),
+        visitor.functionNameToFormula,
+        visitor.variablesToDomains
+      )
     }
   }
 
-  var func_lhs: String = ""
-
-  private def PreProcessInput(exp: String): String = {
-    var new_str: String = exp
-    new_str = new_str.replaceAll("\\(\\)", "\\(1\\)")
-    var indexOfEquals: Int = new_str.indexOf('=')
-    func_lhs = new_str.substring(0, indexOfEquals)
-    new_str = new_str.substring(indexOfEquals + 2)
-    return new_str
-  }
-
   def simplify(exp: String): String = {
-    func_lhs = ""
-    var output_r = new ListBuffer[String]()
-    var func_rhs: String = PreProcessInput(exp)
-    var vars: Set[String] = ("""x[0-9]*""" r).findAllIn(func_rhs).toSet
-    var constraints: String = vars.mkString(">=0 && ") + ">=0 "
-    var ret_val: String = func_lhs + "=" + func_rhs
+    val newStr = exp.replaceAll("\\(\\)", "\\(1\\)")
+    val indexOfEquals: Int = newStr.indexOf('=')
+    val lhs = newStr.substring(0, indexOfEquals)
+    val rhs = newStr.substring(indexOfEquals + 2)
+    lhs + "=" + rhs
       .replaceAll(" ", "")
       .replaceAll("\\*1([^0-9]?)", "$1")
-      .replaceAll(
-        "([^0-9]?)1\\*",
-        "$1"
-      )
-    return ret_val
+      .replaceAll("([^0-9]?)1\\*", "$1")
   }
 }
