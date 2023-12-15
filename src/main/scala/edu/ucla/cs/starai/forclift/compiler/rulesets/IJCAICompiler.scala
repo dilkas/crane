@@ -88,7 +88,7 @@ abstract class IJCAI11Compiler(
       val propagatedClauses = otherClauses.flatMap { _.condition(true, unitLiteral, unitClause.constrs) }
       val branchCnf = new CNF(propagatedClauses)
       val unitCNF = CNF(unitClause)
-      val msg = "Unit propagation of $" + unitClause.toLatex() + "$."
+      val msg = "unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
       logger.trace("\nPositive " + msg + " Before:")
       logger.trace(cnf.toString)
@@ -107,7 +107,7 @@ abstract class IJCAI11Compiler(
       val propagatedClauses = otherClauses.flatMap { _.condition(false, unitLiteral, unitClause.constrs) }
       val branchCnf = new CNF(propagatedClauses)
       val unitCNF = CNF(unitClause)
-      val msg = "Unit propagation of $" + unitClause.toLatex() + "$."
+      val msg = "unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
       logger.trace("\nNegative " + msg + " Before:")
       logger.trace(cnf.toString)

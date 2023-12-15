@@ -106,29 +106,32 @@ case class WeightedCNF(
     )
   }.flatten
 
-  var varDomainMap: collection.mutable.Map[String, Domain] =
-    collection.mutable.Map()
-
-  lazy val asEquations: List[String] = smoothNnfs.map { nnf =>
-    val functionIntroductionFinder = new FunctionIntroductionFinder
-    functionIntroductionFinder.visit(nnf)
-    val (recursions, clauseFuncMap, varDomainMap): (
-        List[String],
-        scala.collection.mutable.Map[String, List[Clause]],
-        scala.collection.mutable.Map[String, Domain]
-    ) = MainOutputVisitor(
-      domainSizes.domains,
-      functionIntroductionFinder.nodes,
-      predicateWeights,
-      nnf
-    )
-    varDomainMap ++= varDomainMap
-    (recursions ++ Equations(recursions).findBaseCases(
-      clauseFuncMap,
-      varDomainMap,
-      this
-    ))
-  }.flatten
+  lazy val asEquations: (Equations, collection.mutable.Map[String, Domain]) = {
+    val variablesToDomains = collection.mutable.Map[String, Domain]()
+    val equations = smoothNnfs.map { nnf =>
+      val functionIntroductionFinder = new FunctionIntroductionFinder
+      functionIntroductionFinder.visit(nnf)
+      val (recursions, functionNameToFormula, v2d): (
+          List[String],
+          scala.collection.mutable.Map[String, List[Clause]],
+          scala.collection.mutable.Map[String, Domain]
+      ) = MainOutputVisitor(
+        domainSizes.domains,
+        functionIntroductionFinder.nodes,
+        predicateWeights,
+        nnf
+      )
+      variablesToDomains ++= v2d
+      (recursions ++ Equations(recursions)
+        .findBaseCaseDefinitions(
+          functionNameToFormula,
+          variablesToDomains,
+          this
+        )
+        .equations)
+    }.flatten
+    (Equations(equations), variablesToDomains)
+  }
 
   def verifyLogWmc {
     VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)

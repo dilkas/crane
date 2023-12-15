@@ -20,11 +20,11 @@ import edu.ucla.cs.starai.forclift.inference.WeightedCNF
   * @param terms
   *   represents a function argument of the form x1-x2 or x1-10-x2 or x2-0
   */
-class FuncArgument(val terms: List[(Boolean, String)]) {
+class FunctionArgument(val terms: List[(Boolean, String)]) {
   override def toString(): String = terms.map(_._2).mkString("-")
 }
 
-object FuncArgument {
+object FunctionArgument {
 
   def apply(argStr: String) = {
     var temp = removeParentheses(argStr).split('-')
@@ -33,9 +33,8 @@ object FuncArgument {
       val plusLoc = argStr.indexOf('+')
       val plusTerm =
         ("x?[0-9]+".r).findFirstIn(argStr.substring(plusLoc)).getOrElse("")
-      if (plusTerm == "") {
+      if (plusTerm == "")
         throw new IllegalStateException("Invalid argument: " + argStr)
-      }
       termBuf += ((true, plusTerm))
       for (t <- 0 to temp.length - 1)
         if (temp(t) != "")
@@ -45,33 +44,28 @@ object FuncArgument {
       for (t <- 1 to temp.length - 1)
         termBuf += ((false, temp(t)))
     }
-    new FuncArgument(simplify(termBuf))
+    new FunctionArgument(simplify(termBuf))
   }
 
-  def removeParentheses(exp: String): String = {
-    var ans: StringBuilder = new StringBuilder()
-    val signStack: Stack[Boolean] = Stack()
+  def removeParentheses(str: String): String = {
+    val ans: StringBuilder = new StringBuilder()
+    val signStack = Stack[Boolean]()
     signStack.push(true)
-    for (index <- 0 to exp.length() - 1) {
-      if (exp(index) == ')') {
+    for (i <- 0 to str.length() - 1) {
+      if (str(i) == ')') {
         signStack.pop()
-      } else if (exp(index) == '+' || exp(index) == '-') {
-        if (index != 0 && exp(index - 1) == '(' && ans.length != 0)
+      } else if (str(i) != '(') {
+        ans += str(i)
+      } else if (str(i) == '+' || str(i) == '-') {
+        if (i != 0 && str(i - 1) == '(' && ans.length != 0)
           ans.setLength(ans.length - 1)
         if (signStack.top) {
-          ans += exp(index)
+          ans += str(i)
         } else {
-          if (exp(index) == '-') ans += '+'
-          else ans += '-'
+          ans += (if (str(i) == '-') '+' else '-')
         }
-        if (exp(index + 1) == '(') {
-          if (exp(index) == '-')
-            signStack.push(!signStack.top)
-          else
-            signStack.push(signStack.top)
-        }
-      } else if (exp(index) != '(') {
-        ans += exp(index)
+        if (str(i + 1) == '(')
+          signStack.push(if (str(i) == '-') !signStack.top else signStack.top)
       }
     }
     if (ans(0) == '+') ans.substring(1) else ans.toString()
@@ -105,7 +99,10 @@ object FuncArgument {
 }
 
 /** Represents a function call of the form f1(x1, x2-3, ...) */
-case class FuncCall(val funcName: String, val args: List[FuncArgument]) {
+case class FunctionCall(
+    val funcName: String,
+    val args: List[FunctionArgument]
+) {
 
   lazy val findConstant: Int = args.find(arg =>
     arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")
@@ -114,22 +111,22 @@ case class FuncCall(val funcName: String, val args: List[FuncArgument]) {
     case _           => throw new IllegalStateException("No constant found")
   }
 
-  def replaceArgument(index: Int, value: String): FuncCall =
-    new FuncCall(funcName, args.updated(index, FuncArgument(value)))
+  def replaceArgument(index: Int, value: String): FunctionCall =
+    new FunctionCall(funcName, args.updated(index, FunctionArgument(value)))
 
   override def toString(): String =
     funcName + "[" + args.map(_.toString).mkString(",") + "]"
 }
 
-object FuncCall {
+object FunctionCall {
   def apply(call: String) = {
     val call2 = call.replaceAll("\\s", "")
     val args = call2
       .substring(call2.indexOf('[') + 1, call2.length() - 1)
       .split(',')
-      .map(str => FuncArgument(str))
+      .map(str => FunctionArgument(str))
       .toList
-    new FuncCall(call2.substring(0, call2.indexOf('[')), args)
+    new FunctionCall(call2.substring(0, call2.indexOf('[')), args)
   }
 }
 
@@ -144,9 +141,9 @@ case class Equations(val equations: List[String] = List()) {
               the previous equations */
   def changeArguments(
       indexOfF0: Int,
-      lhsCall: FuncCall,
-      varDomainMap: BiMap[String, Domain],
-      varDomainMap2: Map[String, Domain],
+      lhsCall: FunctionCall,
+      variablesToDomains: BiMap[String, Domain],
+      variablesToDomains2: Map[String, Domain],
       constDomain: Domain
   ): Equations = {
     val ourFuncArgs: Array[String] = Equations
@@ -166,7 +163,9 @@ case class Equations(val equations: List[String] = List()) {
     val indexMap: scala.collection.mutable.Map[Int, Int] = Map()
     for (index <- 0 to ourFuncArgs.length - 1)
       if (
-        varDomainMap2.keySet.contains(ourFuncArgs(index)) && varDomainMap2(
+        variablesToDomains2.keySet.contains(
+          ourFuncArgs(index)
+        ) && variablesToDomains2(
           ourFuncArgs(index)
         ) != constDomain
       )
@@ -182,7 +181,7 @@ case class Equations(val equations: List[String] = List()) {
                 call.toString().substring(2)
               )
               .toArray
-              .filter(varDomainMap(_) != constDomain)
+              .filter(variablesToDomains(_) != constDomain)
             var transformedArgs: Array[String] =
               actualFuncArgs.clone()
             for (index <- 0 to args.length - 1)
@@ -198,7 +197,7 @@ case class Equations(val equations: List[String] = List()) {
   (f1, f2, ...) too to some non-overlapping names */
   def changeFunctionNames(
       multiplier: String,
-      lhsCall: FuncCall,
+      lhsCall: FunctionCall,
       initialMaxFuncNumber: Int
   ): (Equations, Int) = {
     var maxFuncNumber = initialMaxFuncNumber
@@ -230,8 +229,8 @@ case class Equations(val equations: List[String] = List()) {
               resolve it by changing the other variable to a new one. */
   def changeVariableNames(
       oldEquations: Equations,
-      varDomainMap: BiMap[String, Domain],
-      varDomainMap2: collection.mutable.Map[String, Domain]
+      variablesToDomains: BiMap[String, Domain],
+      variablesToDomains2: collection.mutable.Map[String, Domain]
   ): (Equations, Int) = {
     var maxVarNumber: Int = oldEquations.findMaxVarNumber.max(findMaxVarNumber)
     val indexOfF0 = equations.indexWhere(_.startsWith("f0"))
@@ -249,7 +248,8 @@ case class Equations(val equations: List[String] = List()) {
         .toSet
         .diff(freeVars)
     for (freeVar <- freeVars) {
-      val toReplace = varDomainMap.inverse.get(varDomainMap2(freeVar))
+      val toReplace =
+        variablesToDomains.inverse.get(variablesToDomains2(freeVar))
       if (toReplace != freeVar) {
         // check if there is a collision and handle it
         if (f0BoundedVars.contains(toReplace)) {
@@ -268,27 +268,27 @@ case class Equations(val equations: List[String] = List()) {
     equations.map(eq => Equations.expandEquation(eq.replaceAll(" ", "")))
   )
 
-  def findBaseCases(
-      clauseFuncMap: collection.mutable.Map[String, List[Clause]],
-      varDomainMap: collection.mutable.Map[String, Domain],
+  def findBaseCaseDefinitions(
+      functionNameToFormula: collection.mutable.Map[String, List[Clause]],
+      variablesToDomains: collection.mutable.Map[String, Domain],
       wcnf: WeightedCNF
-  ): List[String] = {
+  ): Equations = {
     var baseCases = Equations()
     for (
-      baseCaseLhs <- Equations.getSufficientBaseCaseSet(
+      baseCaseLhs <- Equations.findBaseCases(
         expanded.findFunctionDependency
       )
     ) {
-      val lhsCall = FuncCall(baseCaseLhs)
+      val lhsCall = FunctionCall(baseCaseLhs)
       val funcSignatureStr: String = startsWith(lhsCall.funcName)
-      val signature = FuncCall(
+      val signature = FunctionCall(
         funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
       )
       val diffIndex: Int =
         signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
           case ((a, i), b) => a.terms(0)._2 != b.terms(0)._2
         }
-      val constDomain: Domain = varDomainMap(
+      val constDomain: Domain = variablesToDomains(
         signature.args(diffIndex).terms(0)._2
       )
       for (
@@ -296,7 +296,7 @@ case class Equations(val equations: List[String] = List()) {
           .transformClauses(
             lhsCall,
             new WeightedCNF(
-              new CNF(clauseFuncMap(lhsCall.funcName)),
+              new CNF(functionNameToFormula(lhsCall.funcName)),
               wcnf.domainSizes,
               wcnf.predicateWeights,
               wcnf.conditionedAtoms,
@@ -305,26 +305,26 @@ case class Equations(val equations: List[String] = List()) {
             constDomain
           )
       ) {
-        baseCases ++= expanded.findBaseCases2(
+        baseCases ++= expanded.propagate(
           lhsCall,
           constDomain,
           signature.funcName,
           simplifiedWcnf,
           multiplier,
-          HashBiMap.create(varDomainMap)
+          HashBiMap.create(variablesToDomains)
         )
       }
     }
-    baseCases.equations
+    baseCases
   }
 
-  def findBaseCases2(
-      lhsCall: FuncCall,
+  private def propagate(
+      lhsCall: FunctionCall,
       constDomain: Domain,
       functionName: String,
       simplifiedWcnf: WeightedCNF,
       multiplier: String,
-      varDomainMap: BiMap[String, Domain]
+      variablesToDomains: BiMap[String, Domain]
   ): Equations = if (multiplier == "0") {
     Equations(List(lhsCall.toString + " = 0"))
   } else {
@@ -340,29 +340,29 @@ case class Equations(val equations: List[String] = List()) {
         .replaceAll(functionName, "f0") + "= 1"
     } else {
       // finding the base cases using Crane
-      newEquations ++= simplifiedWcnf.asEquations
-      val (newNewEquations, indexOfF0) = newEquations.removeSpaces
-        .changeVariableNames(this, varDomainMap, simplifiedWcnf.varDomainMap)
-      newEquations = newNewEquations
-      newEquations = newEquations.changeArguments(
+      val (newEquations2, variablesToDomains2) = simplifiedWcnf.asEquations
+
+      val (newEquations3, indexOfF0) = newEquations2.removeSpaces
+        .changeVariableNames(this, variablesToDomains, variablesToDomains2)
+      newEquations = newEquations3.changeArguments(
         indexOfF0,
         lhsCall,
-        varDomainMap,
-        simplifiedWcnf.varDomainMap,
+        variablesToDomains,
+        variablesToDomains2,
         constDomain
       )
     }
 
-    val (newNewEquations, newIndexOfF0) = newEquations.changeFunctionNames(
+    val (newEquations4, newIndexOfF0) = newEquations.changeFunctionNames(
       multiplier,
       lhsCall,
       maxFuncNumber.max(newEquations.maxFuncNumber)
     )
 
-    newNewEquations.updated(
+    newEquations4.updated(
       newIndexOfF0,
       _.replaceAll(
-        varDomainMap.inverse.get(constDomain),
+        variablesToDomains.inverse.get(constDomain),
         lhsCall.findConstant.toString
       )
     )
@@ -375,15 +375,16 @@ case class Equations(val equations: List[String] = List()) {
     *   a map of the dependencies of each function
     */
   lazy val findFunctionDependency
-      : Map[FuncCall, scala.collection.immutable.Set[FuncCall]] = {
-    var dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]] =
+      : Map[FunctionCall, scala.collection.immutable.Set[FunctionCall]] = {
+    var dependencies
+        : Map[FunctionCall, scala.collection.immutable.Set[FunctionCall]] =
       Map()
     for (equation: String <- equations) {
-      var lhs = FuncCall(equation.split('=')(0).replaceAll("\\s", ""))
-      var dep: scala.collection.immutable.Set[FuncCall] =
+      var lhs = FunctionCall(equation.split('=')(0).replaceAll("\\s", ""))
+      var dep: scala.collection.immutable.Set[FunctionCall] =
         ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
           .findAllIn(equation.split('=')(1).replaceAll("\\s", ""))
-          .map(str => FuncCall(str))
+          .map(str => FunctionCall(str))
           .toSet
       dependencies += (lhs -> dep)
     }
@@ -428,6 +429,36 @@ object Equations {
     override def toString = "c" + (if (i > 0) ("'" * i) else "")
   }
 
+  private[this] def findClosingBracket(str: String, i0: Int): Int = {
+    var numOpenBrackets = 0
+    for (i <- i0 to str.length() - 1) {
+      if (str(i) == '[') {
+        numOpenBrackets += 1
+      } else if (str(i) == ']') {
+        numOpenBrackets -= 1
+        if (numOpenBrackets == 0)
+          return i
+      }
+    }
+    throw new IllegalStateException("No closing bracket found")
+  }
+
+  private[this] def splitAProduct(arg0: String): Array[String] = {
+    var numOpenBrackets = 0
+    var modifiedArg0: StringBuilder = new StringBuilder(arg0)
+    for (index <- 0 to arg0.length() - 1) {
+      modifiedArg0(index) match {
+        case '{' => numOpenBrackets += 1
+        case '}' => numOpenBrackets -= 1
+        case '*' =>
+          if (numOpenBrackets == 0)
+            modifiedArg0.replace(index, index + 1, "_")
+        case _ =>
+      }
+    }
+    modifiedArg0.split('_')
+  }
+
   // @TODO: expand the piecewise and sums in the equation
   def expandEquation(eqStr: String): String = {
     var eq = eqStr.replaceAll(" ", "")
@@ -436,23 +467,7 @@ object Equations {
     var firstSumLoc: Int = eq.indexOf("Sum")
     if (firstSumLoc == -1)
       return eq
-
-    // finding the closing bracket
-    var sumClosingLoc: Int = 0
-    var numOpenBrackets: Int = 0
-    breakable {
-      for (i <- firstSumLoc to eq.length() - 1) {
-        if (eq(i) == '[') {
-          numOpenBrackets += 1
-        } else if (eq(i) == ']') {
-          numOpenBrackets -= 1;
-          if (numOpenBrackets == 0) {
-            sumClosingLoc = i
-            break
-          }
-        }
-      }
-    }
+    val sumClosingLoc = findClosingBracket(eq, firstSumLoc)
 
     // finding the arguments of Sum
     var args: List[String] = Equations.findArgs(
@@ -463,20 +478,7 @@ object Equations {
     var iterVar: String = args(1).substring(1, args(1).indexOf(','))
 
     // check if there is a piecewise term in the argument
-    numOpenBrackets = 0
-    var modifiedArg0: StringBuilder = new StringBuilder(args(0))
-    for (index <- 0 to args(0).length() - 1) {
-      modifiedArg0(index) match {
-        case '{' => numOpenBrackets += 1
-        case '}' => numOpenBrackets -= 1
-        case '*' =>
-          if (numOpenBrackets == 0) {
-            modifiedArg0.replace(index, index + 1, "_")
-          }
-        case _ =>
-      }
-    }
-    var prodTerms: Array[String] = modifiedArg0.split('_')
+    var prodTerms: Array[String] = splitAProduct(args(0))
     val pwIndex: Int = prodTerms.indexWhere(
       _.matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]")
     )
@@ -565,8 +567,11 @@ object Equations {
     args :+ str.substring(prevSep + 1, str.length() - 1)
   }
 
-  private def getSufficientBaseCaseSet(
-      dependencies: Map[FuncCall, scala.collection.immutable.Set[FuncCall]]
+  private def findBaseCases(
+      dependencies: Map[
+        FunctionCall,
+        scala.collection.immutable.Set[FunctionCall]
+      ]
   ): Set[String] = {
     var baseCases = Set[String]()
     for {
@@ -593,7 +598,7 @@ object Equations {
   }
 
   private def transformClauses(
-      funcCall: FuncCall,
+      functionCall: FunctionCall,
       wcnf: WeightedCNF,
       constDomain: Domain
   ): ListBuffer[(WeightedCNF, String)] = {
@@ -601,7 +606,7 @@ object Equations {
     var const: Int = -1
 
     // finding the constant
-    for (arg <- funcCall.args) {
+    for (arg <- functionCall.args) {
       if (arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")) {
         if (const != -1)
           return ListBuffer()

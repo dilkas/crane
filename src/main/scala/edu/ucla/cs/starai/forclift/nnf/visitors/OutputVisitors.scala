@@ -480,7 +480,10 @@ class MainOutputVisitor(
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
     val (expression, functions) = visit(forall.child.get, params)
-    (s"$expression^(" + variableNames(forall.d) + ")", functions)
+    (
+      s"$expression^(${variableNames(forall.d)} - ${forall.ineqs.size})",
+      functions
+    )
   }
 
   protected def visitImprovedDomainRecursion(
@@ -541,7 +544,7 @@ class MainOutputVisitor(
   ): (String, List[String]) = {
     val (variableNames, predicateWeights) = params
     val conditions = leaf.clause.hasConstraintSolution(variableNames)
-    if (conditions == "") ("1", Nil)
+    if (conditions == "") ("0", Nil)
     else (s"Piecewise[{{1, Inequality[$conditions]}}, 0]", Nil)
   }
 
@@ -669,6 +672,5 @@ object MainOutputVisitor {
     lhs + "=" + rhs
       .replaceAll(" ", "")
       .replaceAll("\\*1([^0-9]?)", "$1")
-      .replaceAll("([^0-9]?)1\\*", "$1")
   }
 }
