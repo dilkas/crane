@@ -106,16 +106,12 @@ case class WeightedCNF(
     )
   }.flatten
 
-  lazy val asEquations: (Equations, collection.mutable.Map[String, Domain]) = {
-    val variablesToDomains = collection.mutable.Map[String, Domain]()
+  lazy val asEquations: (Equations, Map[String, Domain]) = {
+    var variablesToDomains = Map[String, Domain]()
     val equations = smoothNnfs.map { nnf =>
       val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
-      val (recursions, functionNameToFormula, v2d): (
-          List[String],
-          scala.collection.mutable.Map[String, List[Clause]],
-          scala.collection.mutable.Map[String, Domain]
-      ) = MainOutputVisitor(
+      val (recursions, functionNameToFormula, v2d) = MainOutputVisitor(
         domainSizes.domains,
         functionIntroductionFinder.nodes,
         predicateWeights,

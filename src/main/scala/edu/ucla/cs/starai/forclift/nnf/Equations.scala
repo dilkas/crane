@@ -5,7 +5,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.Set
 import scala.collection.mutable.Stack
 import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.Map
 import scala.util.control.Breaks._
 
 import com.google.common.collect.BiMap
@@ -136,6 +135,30 @@ case class Equations(val equations: List[String] = List()) {
   def ++(other: List[String]): Equations = Equations(equations ++ other)
   def ++(other: Equations): Equations = Equations(equations ++ other.equations)
 
+  def createIndexMap(
+      actualFuncArgs: Array[String],
+      indexOfF0: Int,
+      variablesToDomains2: Map[String, Domain],
+      constDomain: Domain
+  ): Map[Int, Int] = {
+    val ourFuncArgs = Equations
+      .findArgs(
+        equations(indexOfF0).substring(
+          equations(indexOfF0).indexOf('['),
+          equations(indexOfF0).indexOf('=')
+        )
+      )
+      .toArray
+    (0 to ourFuncArgs.length - 1)
+      .filter(index =>
+        variablesToDomains2.keySet.contains(
+          ourFuncArgs(index)
+        ) && variablesToDomains2(ourFuncArgs(index)) != constDomain
+      )
+      .map(index => (index -> actualFuncArgs.indexOf(ourFuncArgs(index))))
+      .toMap
+  }
+
   /* Make the occurrences of f0 in the rest of the equations in
               `newEquations` consistent with the convention used on `functionName` in
               the previous equations */
@@ -146,40 +169,26 @@ case class Equations(val equations: List[String] = List()) {
       variablesToDomains2: Map[String, Domain],
       constDomain: Domain
   ): Equations = {
-    val ourFuncArgs: Array[String] = Equations
-      .findArgs(
-        equations(indexOfF0).substring(
-          equations(indexOfF0).indexOf('['),
-          equations(indexOfF0).indexOf('=')
-        )
-      )
-      .toArray
-    val actualFuncArgs: Array[String] = Equations
+    val actualFuncArgs = Equations
       .findArgs(
         lhsCall.toString.substring(lhsCall.toString.indexOf('['))
       )
       .toArray
 
-    val indexMap: scala.collection.mutable.Map[Int, Int] = Map()
-    for (index <- 0 to ourFuncArgs.length - 1)
-      if (
-        variablesToDomains2.keySet.contains(
-          ourFuncArgs(index)
-        ) && variablesToDomains2(
-          ourFuncArgs(index)
-        ) != constDomain
-      )
-        indexMap += (index -> actualFuncArgs.indexOf(ourFuncArgs(index)))
+    val indexMap = createIndexMap(
+      actualFuncArgs,
+      indexOfF0,
+      variablesToDomains2,
+      constDomain
+    )
 
     Equations(
       equations.map(
         "f0\\[[x0-9,\\-\\+]*\\]".r.replaceAllIn(
           _,
           call => {
-            val args: Array[String] = Equations
-              .findArgs(
-                call.toString().substring(2)
-              )
+            val args = Equations
+              .findArgs(call.toString().substring(2))
               .toArray
               .filter(variablesToDomains(_) != constDomain)
             var transformedArgs: Array[String] =
@@ -212,8 +221,8 @@ case class Equations(val equations: List[String] = List()) {
         _.replaceAll(funcName, "f" + maxFuncNumber.toString())
       )
     }
-    val indexOfF0: Int = outputEquations.indexWhere(_.startsWith("f0"))
-    val indexOfEquals: Int = outputEquations(indexOfF0).indexOf('=')
+    val indexOfF0 = outputEquations.indexWhere(_.startsWith("f0"))
+    val indexOfEquals = outputEquations(indexOfF0).indexOf('=')
     outputEquations(indexOfF0) =
       lhsCall.toString + "=" + (if (multiplier != "1")
                                   (multiplier + "(")
@@ -230,7 +239,7 @@ case class Equations(val equations: List[String] = List()) {
   def changeVariableNames(
       oldEquations: Equations,
       variablesToDomains: BiMap[String, Domain],
-      variablesToDomains2: collection.mutable.Map[String, Domain]
+      variablesToDomains2: Map[String, Domain]
   ): (Equations, Int) = {
     var maxVarNumber: Int = oldEquations.findMaxVarNumber.max(findMaxVarNumber)
     val indexOfF0 = equations.indexWhere(_.startsWith("f0"))
@@ -269,8 +278,8 @@ case class Equations(val equations: List[String] = List()) {
   )
 
   def findBaseCaseDefinitions(
-      functionNameToFormula: collection.mutable.Map[String, List[Clause]],
-      variablesToDomains: collection.mutable.Map[String, Domain],
+      functionNameToFormula: Map[String, List[Clause]],
+      variablesToDomains: Map[String, Domain],
       wcnf: WeightedCNF
   ): Equations = {
     var baseCases = Equations()
@@ -280,7 +289,7 @@ case class Equations(val equations: List[String] = List()) {
       )
     ) {
       val lhsCall = FunctionCall(baseCaseLhs)
-      val funcSignatureStr: String = startsWith(lhsCall.funcName)
+      val funcSignatureStr = startsWith(lhsCall.funcName)
       val signature = FunctionCall(
         funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
       )
@@ -292,7 +301,7 @@ case class Equations(val equations: List[String] = List()) {
         signature.args(diffIndex).terms(0)._2
       )
       for (
-        (simplifiedWcnf: WeightedCNF, multiplier: String) <- Equations
+        (simplifiedWcnf, multiplier) <- Equations
           .transformClauses(
             lhsCall,
             new WeightedCNF(
@@ -374,22 +383,17 @@ case class Equations(val equations: List[String] = List()) {
     * @return
     *   a map of the dependencies of each function
     */
-  lazy val findFunctionDependency
-      : Map[FunctionCall, scala.collection.immutable.Set[FunctionCall]] = {
-    var dependencies
-        : Map[FunctionCall, scala.collection.immutable.Set[FunctionCall]] =
-      Map()
-    for (equation: String <- equations) {
-      var lhs = FunctionCall(equation.split('=')(0).replaceAll("\\s", ""))
-      var dep: scala.collection.immutable.Set[FunctionCall] =
-        ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
+  private lazy val findFunctionDependency
+      : Map[FunctionCall, scala.collection.immutable.Set[FunctionCall]] =
+    equations
+      .map(equation => {
+        val dep = ("f[0-9]*\\[[x0-9,\\-\\+()]*\\]".r)
           .findAllIn(equation.split('=')(1).replaceAll("\\s", ""))
           .map(str => FunctionCall(str))
           .toSet
-      dependencies += (lhs -> dep)
-    }
-    dependencies
-  }
+        (FunctionCall(equation.split('=')(0).replaceAll("\\s", "")) -> dep)
+      })
+      .toMap
 
   lazy val maxFuncNumber: Int = equations
     .map(("f[0-9]".r).findAllIn(_))
@@ -459,94 +463,72 @@ object Equations {
     modifiedArg0.split('_')
   }
 
+  private[this] def determineBounds(ineqArgs: List[String]): Range =
+    (ineqArgs(1), ineqArgs(3)) match {
+      case ("LessEqual", "Less") => ineqArgs(0).toInt to ineqArgs(4).toInt - 1
+      case ("Less", "Less") => ineqArgs(0).toInt + 1 to ineqArgs(4).toInt - 1
+      case ("LessEqual", "LessEqual") => ineqArgs(0).toInt to ineqArgs(4).toInt
+      case ("Less", "LessEqual") => ineqArgs(0).toInt + 1 to ineqArgs(4).toInt
+      case ("GreaterEqual", "Greater") =>
+        ineqArgs(4).toInt + 1 to ineqArgs(0).toInt
+      case ("Greater", "Greater") =>
+        ineqArgs(4).toInt + 1 to ineqArgs(0).toInt - 1
+      case ("GreaterEqual", "GreaterEqual") =>
+        ineqArgs(4).toInt to ineqArgs(0).toInt
+      case ("Greater", "GreaterEqual") =>
+        ineqArgs(4).toInt to ineqArgs(0).toInt - 1
+    }
+
   // @TODO: expand the piecewise and sums in the equation
   def expandEquation(eqStr: String): String = {
-    var eq = eqStr.replaceAll(" ", "")
+    val eq = eqStr.replaceAll(" ", "")
 
     // find the outermost Sum
-    var firstSumLoc: Int = eq.indexOf("Sum")
+    val firstSumLoc = eq.indexOf("Sum")
     if (firstSumLoc == -1)
       return eq
     val sumClosingLoc = findClosingBracket(eq, firstSumLoc)
 
-    // finding the arguments of Sum
-    var args: List[String] = Equations.findArgs(
-      eq.substring(firstSumLoc + 3, sumClosingLoc + 1)
-    )
+    // find the arguments of Sum
+    val args =
+      Equations.findArgs(eq.substring(firstSumLoc + 3, sumClosingLoc + 1))
 
     // finding the variable iteration for the sum
-    var iterVar: String = args(1).substring(1, args(1).indexOf(','))
+    val iterVar = args(1).substring(1, args(1).indexOf(','))
 
     // check if there is a piecewise term in the argument
-    var prodTerms: Array[String] = splitAProduct(args(0))
-    val pwIndex: Int = prodTerms.indexWhere(
+    val prodTerms = splitAProduct(args(0))
+    val pwIndex = prodTerms.indexWhere(
       _.matches("Piecewise\\[\\{\\{1,Inequality\\[[a-zA-Z0-9,]*\\]\\}\\},0\\]")
     )
 
     // check if the sum can be expanded
-    if (pwIndex != -1) {
+    if (pwIndex == -1) {
+      eq
+    } else {
       // find the inequality inside the piecewise function
-      val piecewise: String = prodTerms(pwIndex)
-      var ineqArgs: List[String] = Equations.findArgs(
+      val ineqArgs = Equations.findArgs(
         ("Inequality\\[[a-zA-Z0-9,]*\\]".r)
-          .findFirstIn(piecewise)
+          .findFirstIn(prodTerms(pwIndex))
           .getOrElse("")
           .replaceAll("Inequality", "")
       )
-      var rest: String = (prodTerms.slice(0, pwIndex) ++ prodTerms.slice(
+      val rest = (prodTerms.slice(0, pwIndex) ++ prodTerms.slice(
         pwIndex + 1,
         prodTerms.length
       )).mkString("*")
-      if (ineqArgs.length == 5) {
-        // find the inequality constraints on the summation variable
-        if (ineqArgs(2) != iterVar)
-          return eq
-        var lowerBound: Int = 0
-        var upperBound: Int = 0
-        (ineqArgs(1), ineqArgs(3)) match {
-          case ("LessEqual", "Less") =>
-            lowerBound = ineqArgs(0).toInt;
-            upperBound = ineqArgs(4).toInt - 1
-          case ("Less", "Less") =>
-            lowerBound = ineqArgs(0).toInt + 1;
-            upperBound = ineqArgs(4).toInt - 1
-          case ("LessEqual", "LessEqual") =>
-            lowerBound = ineqArgs(0).toInt; upperBound = ineqArgs(4).toInt
-          case ("Less", "LessEqual") =>
-            lowerBound = ineqArgs(0).toInt + 1;
-            upperBound = ineqArgs(4).toInt
-
-          case ("GreaterEqual", "Greater") =>
-            lowerBound = ineqArgs(4).toInt + 1;
-            upperBound = ineqArgs(0).toInt
-          case ("Greater", "Greater") =>
-            lowerBound = ineqArgs(4).toInt + 1;
-            upperBound = ineqArgs(0).toInt - 1
-          case ("GreaterEqual", "GreaterEqual") =>
-            lowerBound = ineqArgs(4).toInt; upperBound = ineqArgs(0).toInt
-          case ("Greater", "GreaterEqual") =>
-            lowerBound = ineqArgs(4).toInt;
-            upperBound = ineqArgs(0).toInt - 1
-        }
-        var terms: List[String] = List()
-        for (i <- lowerBound to upperBound) {
-          terms = terms :+ rest.replaceAll(iterVar, i.toString())
-        }
-        var prefix = firstSumLoc match {
-          case 0 => ""
-          case _ => eq.substring(0, firstSumLoc)
-        }
-        var suffix = ""
-        if (sumClosingLoc != eq.length() - 1) {
-          suffix = eq.substring(sumClosingLoc + 1)
-        }
-
-        return expandEquation(prefix + "(" + terms.mkString("+") + ")" + suffix)
-      } else {
+      if (ineqArgs.length != 5)
         return eq
-      }
+      // find the inequality constraints on the summation variable
+      if (ineqArgs(2) != iterVar)
+        return eq
+      val terms =
+        determineBounds(ineqArgs).map(i => rest.replaceAll(iterVar, i.toString))
+      expandEquation(
+        eq.substring(0, firstSumLoc) + "(" + terms.mkString("+") + ")" + eq
+          .substring(sumClosingLoc + 1)
+      )
     }
-    eq
   }
 
   private def findArgs(callStr: String, sep: Char = ','): List[String] = {
@@ -572,27 +554,20 @@ object Equations {
         FunctionCall,
         scala.collection.immutable.Set[FunctionCall]
       ]
-  ): Set[String] = {
-    var baseCases = Set[String]()
+  ): collection.Set[String] = {
+    var baseCases = collection.Set[String]()
     for {
       dependency <- dependencies
       rhsFunc <- dependency._2
       (arg, i) <- rhsFunc.args.zipWithIndex
+      if arg.terms.length >= 2
     } {
-      if (arg.terms.length > 2) {
+      if (arg.terms.length > 2)
         throw new IllegalStateException(
-          "This type of term not supported : " + arg.toString
+          "This type of term is not supported: " + arg.toString
         )
-      } else if (arg.terms.length == 2) {
-        val lim: Int = arg.terms(1)._2.toInt - 1
-        for (l <- 0 to lim) {
-          baseCases += dependency._1.replaceArgument(i, l.toString).toString
-          if (rhsFunc.funcName != dependency._1.funcName)
-            baseCases += (rhsFunc.funcName + "[" + rhsFunc.args
-              .map(_.terms(0)._2)
-              .mkString(",") + "]").replace(arg.terms(0)._2, l.toString)
-        }
-      }
+      for (l <- 0 to arg.terms(1)._2.toInt - 1)
+        baseCases += dependency._1.replaceArgument(i, l.toString).toString
     }
     baseCases
   }
@@ -639,7 +614,7 @@ object Equations {
       /* check if the null domain is present in the domain constraints of
        * the clause */
       if (clause.constrs.elemConstrs.domains.contains(constDomain)) {
-        // check if there is a predicate none of  whose arguments belong to the null domain
+        // check if there is a predicate none of whose arguments belong to the null domain
         val newPosList: ListBuffer[Atom] = ListBuffer()
         val newNegList: ListBuffer[Atom] = ListBuffer()
         for (atom <- clause.atoms if !containsNullConst) {

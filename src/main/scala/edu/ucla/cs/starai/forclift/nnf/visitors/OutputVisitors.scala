@@ -367,8 +367,7 @@ class MainOutputVisitor(
   private[this] val functionNames = collection.mutable.Map[NNFNode, String]()
 
   /** Maps function names to the corresponding logical formula */
-  private val functionNameToFormula =
-    scala.collection.mutable.Map[String, List[Clause]]()
+  private var functionNameToFormula = Map[String, List[Clause]]()
 
   private[this] var nextFunctionIndex = 0
   private[this] var nextVariableIndex = 0
@@ -624,7 +623,7 @@ object MainOutputVisitor {
       source: NNFNode
   ): (
       List[String],
-      scala.collection.mutable.Map[String, List[Clause]],
+      Map[String, List[Clause]],
       scala.collection.mutable.Map[String, Domain]
   ) = {
     val visitor = new MainOutputVisitor(
