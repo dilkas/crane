@@ -144,9 +144,7 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
 
     // Print the final set of equations (assuming a sufficient verbosity level)
     val expandedEquations =
-      inputCLI.wcnfModel.asEquations._1.equations.map(eqn =>
-        Equations.expandEquation(eqn.replaceAll(" ", ""))
-      )
+      inputCLI.wcnfModel.asEquations._1.withSumsExpanded.equations
     logger.debug("")
     expandedEquations.foreach { logger.debug(_) }
 
