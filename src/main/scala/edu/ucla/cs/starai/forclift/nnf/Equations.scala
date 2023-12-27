@@ -36,7 +36,7 @@ object FunctionArgument {
   def apply(argStr: String) = {
     var temp = removeParentheses(argStr).split('-')
     val termBuf: ListBuffer[(Boolean, String)] = ListBuffer()
-    if (argStr(0) == '-') {
+    if (argStr.nonEmpty && argStr(0) == '-') {
       val plusLoc = argStr.indexOf('+')
       val plusTerm =
         ("x?[0-9]+".r).findFirstIn(argStr.substring(plusLoc)).getOrElse("")
@@ -80,7 +80,7 @@ object FunctionArgument {
           signStack.push(if (str(i) == '-') !signStack.top else signStack.top)
       }
     }
-    if (ans(0) == '+') ans.substring(1) else ans.toString()
+    if (ans.nonEmpty && ans(0) == '+') ans.substring(1) else ans.toString()
   }
 
   /** Reduces the number of integers in the expression to just one.
