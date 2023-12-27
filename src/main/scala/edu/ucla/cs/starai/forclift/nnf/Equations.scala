@@ -26,6 +26,8 @@ import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 class FunctionArgument(val terms: List[(Boolean, String)]) {
   lazy val isConstant: Boolean =
     terms.length == 1 && terms(0)._2.matches("[0-9]+")
+  lazy val isSuitableForBaseCases: Boolean =
+    terms.length == 2 && terms(1)._2.matches("[0-9]+")
   override def toString(): String = terms.map(_._2).mkString("-")
 }
 
@@ -237,12 +239,8 @@ case class Equations(val equations: List[String] = List()) {
       dependency <- withSumsExpanded.dependencies
       rhsFunc <- dependency._2
       (arg, i) <- rhsFunc.args.zipWithIndex
-      if arg.terms.length >= 2
+      if arg.isSuitableForBaseCases
     } {
-      if (arg.terms.length > 2)
-        throw new IllegalStateException(
-          "This type of term is not supported: " + arg.toString
-        )
       for (l <- 0 to arg.terms(1)._2.toInt - 1)
         baseCases += dependency._1.replaceArgument(i, l).toString
     }
@@ -277,7 +275,7 @@ case class Equations(val equations: List[String] = List()) {
             .toArray
             .filter(variablesToDomains(_) != constDomain)
           var transformedArgs = actualFuncArgs.clone()
-          for (index <- (0 to args.length - 1).filter(indexMap(_) != -1))
+          for (index <- (0 to args.length - 1).filter(i => indexMap.contains(i) && indexMap(i) != -1))
             transformedArgs(indexMap(index)) = args(index)
           "f0[" + transformedArgs.mkString(", ") + "]"
         }
@@ -371,7 +369,6 @@ case class Equations(val equations: List[String] = List()) {
         multiplier,
         HashBiMap.create(variablesToDomains)
       )
-      println("definitions: " + definitions.equations)
     }
     definitions
   }
@@ -399,7 +396,6 @@ case class Equations(val equations: List[String] = List()) {
       // finding the base cases using Crane
       val (newEquations2, variablesToDomains2) = simplifiedWcnf.asEquations
       newEquations = newEquations2.withoutSpaces
-      println("propagate0: " + newEquations.equations)
       val newF0 = Equations.changeVariableNames(
         newEquations.equations(newEquations.indexOfF0),
         variablesToDomains,
@@ -416,15 +412,12 @@ case class Equations(val equations: List[String] = List()) {
         )
     }
 
-    println("propagate1: " + newEquations.equations)
     newEquations = newEquations.updateF0(
       _.replaceAll(
         variablesToDomains.inverse.get(constDomain),
         lhsCall.firstConstant
       )
     )
-    println("propagate2: " + newEquations.equations)
-
     newEquations.changeFunctionNames(
       multiplier,
       lhsCall.toString,
@@ -477,7 +470,6 @@ object Equations {
       newValue.replaceAll(freeVar, "y" + toReplace.substring(1))
     }
     newValue.replace('y', 'x')
-    println("changeVariableNames: FROM " + equation + " TO " + newValue)
     newValue
   }
 
@@ -605,8 +597,6 @@ object Equations {
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
-    println("processZeroConstant(" + constDomain + ")")
-    println("wcnf.cnf before: " + wcnf.cnf)
     val simplifiedClauses: ListBuffer[Clause] = ListBuffer()
     var containsNullConst: Boolean = false
     for (clause: Clause <- wcnf.cnf.self if !containsNullConst) {
@@ -650,7 +640,6 @@ object Equations {
           )
       }
     }
-    println("wcnf.cnf after: " + simplifiedClauses.toList)
     (
       wcnf.copy(cnf = new CNF(simplifiedClauses.toList)),
       if (containsNullConst) "0" else "1"
@@ -661,7 +650,6 @@ object Equations {
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
-    println("processOneConstant")
     val constantsInUnitDomain =
       wcnf.cnf.constants.filter(_.domain == constDomain)
     if (constantsInUnitDomain.size > 1) {

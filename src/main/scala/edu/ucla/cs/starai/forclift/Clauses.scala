@@ -966,9 +966,9 @@ sealed trait UnitClause extends Clause {
     while (iter.hasNext) {
       val condition =
         iter.next.hasConstraintSolutionAssumingShatteredDomains(variableNames)
-      conditions = conditions + condition + " && "
+      conditions = conditions + condition + ","
     }
-    return conditions.dropRight(4)
+    return conditions.dropRight(1)
   }
 
   @inline def nbConstraintGroundings(domainSizes: DomainSizes): GInt = {

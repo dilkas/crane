@@ -1,6 +1,7 @@
 #include "function_call.h"
 
 #include <cassert>
+#include <iostream>
 #include <sstream>
 
 #include "expression.h"
@@ -117,17 +118,24 @@ FunctionCall *InequalityFunctionCall::CloneFunctionCall() const {
 
 std::string
 InequalityFunctionCall::ToCppString(std::vector<std::string> free_vars) const {
-  assert(func_args.size() == 3 || func_args.size() == 5);
-  std::stringstream cpp_exp;
   auto get_func_call = [free_vars](const Token &e) {
     return e.ToCppString(free_vars);
   };
-  for (int i = 0; i < 3; i++)
-    cpp_exp << func_args.at(i)->ToString(get_func_call) << " ";
-  if (func_args.size() == 5) {
-    cpp_exp << " && ";
-    for (int i = 2; i < 5; i++)
-      cpp_exp << " " << func_args.at(i)->ToString(get_func_call);
+
+  std::vector<std::string> as_strings;
+  for (auto const &arg : func_args)
+    as_strings.push_back(arg->ToString(get_func_call));
+
+  std::stringstream cpp_exp;
+  bool first = true;
+  for (unsigned i = 1; i < as_strings.size(); i++) {
+    if (as_strings.at(i) == "<=") {
+      if (!first)
+        cpp_exp << " && ";
+      first = false;
+      cpp_exp << as_strings.at(i - 1) << " " << as_strings.at(i) << " "
+              << as_strings.at(i + 1);
+    }
   }
   return cpp_exp.str();
 }

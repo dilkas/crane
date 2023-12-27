@@ -284,10 +284,10 @@ final case class Constraints(
       val domainSize: String = dim._3.symbolicSize(variableNames, dim._1)
       val min = dim._1.size
       val max = dim._1.size + dim._2
-      expression += s"$min, LessEqual, $domainSize, LessEqual, $max && "
+      expression += s"$min, LessEqual, $domainSize, LessEqual, $max, "
       dims = dims.tail
     }
-    return expression.dropRight(4)
+    expression.dropRight(2)
   }
 
   // split because the handling of inequality constraints between variables
