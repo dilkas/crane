@@ -75,7 +75,8 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
 
   def isGround = variables.isEmpty
 
-  def isSingleton = (variables.size == 1)
+  def isSingleton(excludedDomains: Set[Domain] = Set[Domain]()) =
+    (variables.size == 1 && !excludedDomains.contains(domain(variables.head)))
 
   def samePredicates(that: Atom): Boolean = (predicate == that.predicate)
 

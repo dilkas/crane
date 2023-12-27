@@ -123,7 +123,8 @@ class Clause(
     Clause(posLits, negLits, constrs.setDomain(variable, domain))
   }
 
-  def singletonLiterals = atoms.filter { _.isSingleton }
+  def singletonLiterals(excludedDomains: Set[Domain] = Set[Domain]()) =
+    atoms.filter { _.isSingleton(excludedDomains) }
 
   def stripConstraints = new Clause(posLits, negLits, Constraints.empty)
 

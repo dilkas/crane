@@ -35,8 +35,8 @@ object IJCAI11Compiler {
 }
 
 abstract class IJCAI11Compiler(
-  sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-  nnfCache: Compiler.Buckets = new Compiler.Buckets
+    sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
+    nnfCache: Compiler.Buckets = new Compiler.Buckets
 ) extends AbstractCompiler(nnfCache) {
 
   def tryTautology(cnf: CNF) = {
@@ -49,7 +49,8 @@ abstract class IJCAI11Compiler(
   def tryPositiveUnitClause(cnf: CNF) = {
     // only compile if the clause is unconditional
     // otherwise do shannon decomposition to separate the conditions from the literals, to help with smoothing
-    val isPositiveUnit = cnf.isSingleton && cnf.clauses.head.isPositiveUnitClause && cnf.clauses.head.isUnconditional
+    val isPositiveUnit =
+      cnf.isSingleton && cnf.clauses.head.isPositiveUnitClause && cnf.clauses.head.isUnconditional
     if (isPositiveUnit) {
       val unitClause = cnf.clauses.head
       val unitLeaf = new UnitLeaf(cnf, unitClause.toUnitClause, true)
@@ -58,7 +59,8 @@ abstract class IJCAI11Compiler(
   }
 
   def tryNegativeUnitClause(cnf: CNF) = {
-    val isPositiveUnit = cnf.isSingleton && cnf.clauses.head.isNegativeUnitClause && cnf.clauses.head.isUnconditional
+    val isPositiveUnit =
+      cnf.isSingleton && cnf.clauses.head.isNegativeUnitClause && cnf.clauses.head.isUnconditional
     if (isPositiveUnit) {
       val unitClause = cnf.clauses.head
       val unitLeaf = new UnitLeaf(cnf, unitClause.toUnitClause, false)
@@ -67,27 +69,31 @@ abstract class IJCAI11Compiler(
   }
 
   def tryContradictionClause(cnf: CNF) = {
-    val isConditionalContradiction = cnf.clauses.size == 1 && cnf.clauses.head.isConditionalContradiction
+    val isConditionalContradiction =
+      cnf.clauses.size == 1 && cnf.clauses.head.isConditionalContradiction
     if (isConditionalContradiction) {
       logger.trace("\ncontradiction clause")
       val contradiction = cnf.clauses.head
-      val contradictionLeaf = new ContradictionLeaf(cnf, contradiction.toContradictionClause, true)
+      val contradictionLeaf =
+        new ContradictionLeaf(cnf, contradiction.toContradictionClause, true)
       logger.trace(cnf.toString + "\n")
       List((Some(contradictionLeaf), List[CNF]()))
     } else List[Result]()
   }
 
   def tryPositiveUnitPropagation(cnf: CNF) = {
-    val unitClauseOption = cnf.clauses.find {
-      c => c.isPositiveUnitClause && c.isUnconditional
+    val unitClauseOption = cnf.clauses.find { c =>
+      c.isPositiveUnitClause && c.isUnconditional
     }
     if (unitClauseOption.nonEmpty) {
       val unitClause = unitClauseOption.get
       val unitLiteral = unitClause.atoms.head
       val otherClauses: List[Clause] = cnf.clauses filterNot (_ == unitClause)
-      val propagatedClauses = otherClauses.flatMap { _.condition(true, unitLiteral, unitClause.constrs) }
-      val branchCnf = new CNF(propagatedClauses)
-      val unitCNF = CNF(unitClause)
+      val propagatedClauses = otherClauses.flatMap {
+        _.condition(true, unitLiteral, unitClause.constrs)
+      }
+      val branchCnf = new CNF(propagatedClauses, cnf.excludedDomains)
+      val unitCNF = CNF(cnf.excludedDomains, unitClause)
       val msg = "unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
       logger.trace("\nPositive " + msg + " Before:")
@@ -99,14 +105,18 @@ abstract class IJCAI11Compiler(
   }
 
   def tryNegativeUnitPropagation(cnf: CNF) = {
-    val unitClauseOption = cnf.clauses.find { c => c.isNegativeUnitClause && c.isUnconditional }
+    val unitClauseOption = cnf.clauses.find { c =>
+      c.isNegativeUnitClause && c.isUnconditional
+    }
     if (unitClauseOption.nonEmpty) {
       val unitClause = unitClauseOption.get
       val unitLiteral = unitClause.atoms.head
       val otherClauses: List[Clause] = cnf.clauses filterNot (_ == unitClause)
-      val propagatedClauses = otherClauses.flatMap { _.condition(false, unitLiteral, unitClause.constrs) }
-      val branchCnf = new CNF(propagatedClauses)
-      val unitCNF = CNF(unitClause)
+      val propagatedClauses = otherClauses.flatMap {
+        _.condition(false, unitLiteral, unitClause.constrs)
+      }
+      val branchCnf = new CNF(propagatedClauses, cnf.excludedDomains)
+      val unitCNF = CNF(cnf.excludedDomains, unitClause)
       val msg = "unit propagation of $" + unitClause.toLatex() + "$."
       val node = new And(cnf, None, None, msg)
       logger.trace("\nNegative " + msg + " Before:")
@@ -122,7 +132,7 @@ abstract class IJCAI11Compiler(
     if (newClauses.size < cnf.clauses.size) {
       logger.trace("\nremove double clauses. Before:")
       logger.trace(cnf + "\n")
-      val newCnf = new CNF(newClauses)
+      val newCnf = new CNF(newClauses, cnf.excludedDomains)
       logger.trace("After:")
       logger.trace(newCnf + "\n")
       List((None, List(newCnf)))
@@ -133,41 +143,55 @@ abstract class IJCAI11Compiler(
     tryIndependentSubtheories(cnf, false)
   }
 
-  def tryIndependentSubtheories(cnf: CNF, afterShattering: Boolean)
-      : InferenceResult = {
-    def partition(depClauses: List[Clause], indepClauses: List[Clause]): (List[Clause], List[Clause]) = {
+  def tryIndependentSubtheories(
+      cnf: CNF,
+      afterShattering: Boolean
+  ): InferenceResult = {
+    def partition(
+        depClauses: List[Clause],
+        indepClauses: List[Clause]
+    ): (List[Clause], List[Clause]) = {
       if (indepClauses.isEmpty) (depClauses, Nil)
-      else depClauses match {
-        case clause :: rest => {
-          val (indep, dep) = indepClauses.partition(clause.independent(_))
-          val (depAll, indepAll) = partition(rest ++ dep, indep)
-          (clause :: depAll, indepAll)
+      else
+        depClauses match {
+          case clause :: rest => {
+            val (indep, dep) = indepClauses.partition(clause.independent(_))
+            val (depAll, indepAll) = partition(rest ++ dep, indep)
+            (clause :: depAll, indepAll)
+          }
+          case Nil => (Nil, indepClauses)
         }
-        case Nil => (Nil, indepClauses)
-      }
     }
     val (dep, indep) = partition(List(cnf.clauses.head), cnf.clauses.tail)
     if (indep.isEmpty) List[Result]()
     else {
-      val msg = if (!afterShattering) "Independence." else "Independence after shattering."
+      val msg =
+        if (!afterShattering) "Independence."
+        else "Independence after shattering."
       val node = new And(cnf, None, None, msg)
 
       logger.trace("\n" + msg + " Before:")
       logger.trace(cnf.toString)
       logger.trace("After 1:")
-      logger.trace(new CNF(dep).toString)
+      logger.trace(new CNF(dep, cnf.excludedDomains).toString)
       logger.trace("After 2:")
-      logger.trace(new CNF(indep) + "\n")
+      logger.trace(new CNF(indep, cnf.excludedDomains) + "\n")
 
-      List((Some(node), List(new CNF(dep), new CNF(indep))))
+      List(
+        (
+          Some(node),
+          List(
+            new CNF(dep, cnf.excludedDomains),
+            new CNF(indep, cnf.excludedDomains)
+          )
+        )
+      )
     }
   }
 
-  /**
-   * Same as tryIndependentSubtheories but try shattering before.
-   */
-  def tryIndependentSubtheoriesAfterShattering(cnf: CNF)
-      : InferenceResult = {
+  /** Same as tryIndependentSubtheories but try shattering before.
+    */
+  def tryIndependentSubtheoriesAfterShattering(cnf: CNF): InferenceResult = {
     val shatteredCnf = shatter(cnf)
     if (cnf eq shatteredCnf) List[Result]()
     else {
@@ -193,8 +217,10 @@ abstract class IJCAI11Compiler(
     tryGroundDecomposition(cnf, true)
   }
 
-  def tryGroundDecomposition(cnf: CNF, countShatteredLiterals: Boolean)
-      : InferenceResult = {
+  def tryGroundDecomposition(
+      cnf: CNF,
+      countShatteredLiterals: Boolean
+  ): InferenceResult = {
     val countingCnf = if (countShatteredLiterals) shatter(cnf) else cnf
     val groundLiterals = countingCnf.clauses.flatMap { _.groundLiterals }
     if (groundLiterals.nonEmpty) {
@@ -208,7 +234,8 @@ abstract class IJCAI11Compiler(
       val (literal, _) = atomCounts.max(ordering)
       val trueBranch = cnf + Clause(List(literal), List())
       val falseBranch = cnf + Clause(List(), List(literal))
-      val msg = "Shannon decomposition on $" + literal.toLatex(new VarNameSpace) + "$."
+      val msg =
+        "Shannon decomposition on $" + literal.toLatex(new VarNameSpace) + "$."
       val node = new Or(cnf, None, None, msg)
       logger.trace("\n" + msg + " Before:")
       logger.trace(cnf.toString)
@@ -221,14 +248,16 @@ abstract class IJCAI11Compiler(
   }
 
   def tryInclusionExclusion(cnf: CNF) = {
-    val decomposableClauseOption = cnf.clauses.find { _.independentLiterals.nonEmpty }
+    val decomposableClauseOption = cnf.clauses.find {
+      _.independentLiterals.nonEmpty
+    }
     if (decomposableClauseOption.nonEmpty) {
       val Some(clause) = decomposableClauseOption
       val otherClauses = cnf.clauses filterNot (_ == clause)
       val Some((cl1, cl2)) = clause.independentLiterals
-      val plus1Branch = new CNF(cl1 :: otherClauses)
-      val plus2Branch = new CNF(cl2 :: otherClauses)
-      val minBranch = new CNF(cl1 :: cl2 :: otherClauses)
+      val plus1Branch = new CNF(cl1 :: otherClauses, cnf.excludedDomains)
+      val plus2Branch = new CNF(cl2 :: otherClauses, cnf.excludedDomains)
+      val minBranch = new CNF(cl1 :: cl2 :: otherClauses, cnf.excludedDomains)
       val msg = "Inclusion-exclusion on $" + clause.toLatex() + "$."
       val node = new InclusionExclusion(cnf, None, None, None, msg)
 
@@ -259,9 +288,12 @@ abstract class IJCAI11Compiler(
   }
 
   def groundingConstantFor(cnf: CNF, domain: Domain) = {
-    val existingIndices = cnf.constants.filter {
-      _.value.isInstanceOf[IndexedConstant]
-    }.map { _.value.asInstanceOf[IndexedConstant].i }.toSet
+    val existingIndices = cnf.constants
+      .filter {
+        _.value.isInstanceOf[IndexedConstant]
+      }
+      .map { _.value.asInstanceOf[IndexedConstant].i }
+      .toSet
     val newIndex = Stream.from(0).find { index => !existingIndices(index) }.get
     groundingConstant(newIndex, domain)
   }
@@ -270,104 +302,150 @@ abstract class IJCAI11Compiler(
 
   def tryIndependentPartialGrounding(cnf: CNF): InferenceResult = {
     // in the future, this should be implemented  by finding all binding classes and then checking size and root
-    if(cnf.clauses.exists(_.rootVars.isEmpty)) return List[Result]()
+    if (cnf.clauses.exists(_.rootVars.isEmpty)) return List[Result]()
     else {
       // every clause has a root variable -- we can try
       val chosenVariables = collection.mutable.Map.empty[Clause, Var]
-      val (unaryClauses, multiClauses) = cnf.clauses.partition { _.literalVariables.size == 1 }
+      val (unaryClauses, multiClauses) = cnf.clauses.partition {
+        _.literalVariables.size == 1
+      }
       // first choose the root variables of unary clauses. they cannot lead to conflicts
-      for (c <- unaryClauses)  chosenVariables(c) = c.literalVariables.head
+      for (c <- unaryClauses) chosenVariables(c) = c.literalVariables.head
       var chosenClauses = unaryClauses
       // one by one add all variables that are the only roots in their clause
-      val (singletonRoots, multiRoots) = multiClauses.partition { _.rootVars.size == 1 }
-      for (c <- singletonRoots)  {
-        if(!tryAddingVariable(chosenVariables, chosenClauses, c,
-                              c.rootVars.head)) {
+      val (singletonRoots, multiRoots) = multiClauses.partition {
+        _.rootVars.size == 1
+      }
+      for (c <- singletonRoots) {
+        if (
+          !tryAddingVariable(chosenVariables, chosenClauses, c, c.rootVars.head)
+        ) {
           return List[Result]()
         }
         chosenClauses = c :: chosenClauses
       }
       // now do search for the remainder
-      val finalChoice = searchChoices(chosenVariables,chosenClauses,multiRoots.sortBy(_.rootVars.size))
-      if(finalChoice.isEmpty) return List[Result]()
-      else{
+      val finalChoice = searchChoices(
+        chosenVariables,
+        chosenClauses,
+        multiRoots.sortBy(_.rootVars.size)
+      )
+      if (finalChoice.isEmpty) return List[Result]()
+      else {
         logger.trace("\nindependent partial grounding")
-    	  val solution = finalChoice.get
-    	  val rootVars = solution.values.toSet
-	      val rootVarDomains = rootVars.flatMap { rootVar =>
-	        cnf.clauses.filter { _.literalVariables(rootVar) }.map { _.constrs.domainFor(rootVar) }
-	      }.toSet
-	      assume(rootVarDomains.size == 1) //because of independence
-	      val rootVarDomain = rootVarDomains.head
-	      val constant = groundingConstantFor(cnf, rootVarDomain)
-	      def substituteRootVars(v: Var): Term = {
-	        if (rootVars.contains(v)) constant
-	        else v
-	      }
-	      val invertedClauses = cnf.clauses.map { clause =>
-	        val substitutedClause = clause.substitute(solution(clause), constant)
-	        substitutedClause
-	      }
-	      val invertedCNF = new CNF(invertedClauses)
-	      val rootVarIneqs = cnf.clauses.flatMap { clause =>
-	        clause.constrs.ineqConstrs(solution(clause)).collect { case c: Constant => c }
-	      }.toSet
-	      val msg = ("""Independent partial grounding of $ X \in """ + rootVarDomain + """ $""" +
-	        (if (rootVarIneqs.isEmpty) "." else """, $ """ + rootVarIneqs.map { """X \neq """ + _.toString }.mkString(" , ") + " $."))
+        val solution = finalChoice.get
+        val rootVars = solution.values.toSet
+        val rootVarDomains = rootVars.flatMap { rootVar =>
+          cnf.clauses.filter { _.literalVariables(rootVar) }.map {
+            _.constrs.domainFor(rootVar)
+          }
+        }.toSet
+        assume(rootVarDomains.size == 1) // because of independence
+        val rootVarDomain = rootVarDomains.head
+        val constant = groundingConstantFor(cnf, rootVarDomain)
+        def substituteRootVars(v: Var): Term = {
+          if (rootVars.contains(v)) constant
+          else v
+        }
+        val invertedClauses = cnf.clauses.map { clause =>
+          val substitutedClause = clause.substitute(solution(clause), constant)
+          substitutedClause
+        }
+        val invertedCNF = new CNF(invertedClauses, cnf.excludedDomains)
+        val rootVarIneqs = cnf.clauses.flatMap { clause =>
+          clause.constrs.ineqConstrs(solution(clause)).collect {
+            case c: Constant => c
+          }
+        }.toSet
+        val msg =
+          ("""Independent partial grounding of $ X \in """ + rootVarDomain + """ $""" +
+            (if (rootVarIneqs.isEmpty) "."
+             else
+               """, $ """ + rootVarIneqs
+                 .map { """X \neq """ + _.toString }
+                 .mkString(" , ") + " $."))
         val inversionNode = new IndependentPartialGroundingNode(
-          cnf, None, constant, rootVarIneqs, rootVarDomain, msg)
+          cnf,
+          None,
+          constant,
+          rootVarIneqs,
+          rootVarDomain,
+          msg
+        )
         logger.trace(cnf.toString + "\n")
-	      List((Some(inversionNode), List(invertedCNF)))
+        List((Some(inversionNode), List(invertedCNF)))
       }
     }
   }
 
- /**
-  * Optimization to reduce the size of the search tree: propagate choices
-  */
-  private[this] def searchChoices(choices: ChoiceMap,
-                                  chosenClauses: List[Clause],
-                                  otherClauses: List[Clause]): Option[ChoiceMap] = {
-    if(otherClauses.isEmpty) Some(choices)
-    else{
+  /** Optimization to reduce the size of the search tree: propagate choices
+    */
+  private[this] def searchChoices(
+      choices: ChoiceMap,
+      chosenClauses: List[Clause],
+      otherClauses: List[Clause]
+  ): Option[ChoiceMap] = {
+    if (otherClauses.isEmpty) Some(choices)
+    else {
       val clause :: tailClauses = otherClauses
       val roots = clause.rootVars
-      for(root <- roots){
+      for (root <- roots) {
         val newChoices = choices.clone
-        if(tryAddingVariable(newChoices,chosenClauses,clause,root)){
+        if (tryAddingVariable(newChoices, chosenClauses, clause, root)) {
           // now also assign variables from clauses that depend on the just assigned clause (requires no search)
-          val (dependentClauses, independentClauses) = tailClauses.partition(_ dependent clause)
-          val newChosenClausesOption = propagateBindingClass(newChoices, clause, root,
-        		  											 clause :: chosenClauses, dependentClauses)
-          if(newChosenClausesOption.nonEmpty){
-	          val completeChoices = searchChoices(newChoices,newChosenClausesOption.get,independentClauses)
-	          if(completeChoices.nonEmpty) return completeChoices
-          }// else try next root
-        }// else try next root
+          val (dependentClauses, independentClauses) =
+            tailClauses.partition(_ dependent clause)
+          val newChosenClausesOption = propagateBindingClass(
+            newChoices,
+            clause,
+            root,
+            clause :: chosenClauses,
+            dependentClauses
+          )
+          if (newChosenClausesOption.nonEmpty) {
+            val completeChoices = searchChoices(
+              newChoices,
+              newChosenClausesOption.get,
+              independentClauses
+            )
+            if (completeChoices.nonEmpty) return completeChoices
+          } // else try next root
+        } // else try next root
       }
       return None
     }
   }
 
-  private[this] def propagateBindingClass(choices: ChoiceMap,
-		  								  clause: Clause, root: Var,
-		  								  chosenClauses: List[Clause], dependentClauses: List[Clause]
-		  								 ): Option[List[Clause]] = {
+  private[this] def propagateBindingClass(
+      choices: ChoiceMap,
+      clause: Clause,
+      root: Var,
+      chosenClauses: List[Clause],
+      dependentClauses: List[Clause]
+  ): Option[List[Clause]] = {
     var newChosenClauses = chosenClauses
-    for(depClause <- dependentClauses){
+    for (depClause <- dependentClauses) {
       val bindingVariable = boundVars(clause, root, depClause)
-      require(bindingVariable.size > 0, "Input dependentClauses have to depend on clause")
-      if(bindingVariable.size != 1) return None
+      require(
+        bindingVariable.size > 0,
+        "Input dependentClauses have to depend on clause"
+      )
+      if (bindingVariable.size != 1) return None
       val newRoot = bindingVariable.head
-      if(!depClause.rootVars(newRoot)) return None
-      if(!tryAddingVariable(choices, newChosenClauses, depClause, newRoot)) return None
+      if (!depClause.rootVars(newRoot)) return None
+      if (!tryAddingVariable(choices, newChosenClauses, depClause, newRoot))
+        return None
       newChosenClauses = depClause :: newChosenClauses
     }
     return Some(newChosenClauses)
   }
 
-  private[this] def tryAddingVariable(choices: ChoiceMap, chosenClauses: List[Clause],
-		  								clause: Clause, v: Var): Boolean = {
+  private[this] def tryAddingVariable(
+      choices: ChoiceMap,
+      chosenClauses: List[Clause],
+      clause: Clause,
+      v: Var
+  ): Boolean = {
     require(clause.rootVars(v))
     require(!choices.contains(clause))
     // check if v appears in two incompatible positions in clause
@@ -378,19 +456,24 @@ abstract class IJCAI11Compiler(
     if (boundSelfVars.size > 1) {
       return false // v unifies with more than its copy v' when standardizing apart
     }
-    for(chosenClause <- chosenClauses){
-      if(chosenClause dependent clause){
-	      val chosenClauseVar = choices(chosenClause)
-	      val bindingInNewClause = boundVars(chosenClause, chosenClauseVar, clause)
-	      assume(bindingInNewClause.size > 0)
-	      if(bindingInNewClause.size > 1 || !bindingInNewClause.contains(v)) {
-	        return false // bad bindings in new clause
-	      }
-	      val bindingInChosenClause = boundVars(clause, v, chosenClause)
-	      assume(bindingInChosenClause.size > 0)
-	      if(bindingInChosenClause.size > 1 || !bindingInChosenClause.contains(chosenClauseVar)) {
-	        return false // bad bindings in already chosen clause
-	      }
+    for (chosenClause <- chosenClauses) {
+      if (chosenClause dependent clause) {
+        val chosenClauseVar = choices(chosenClause)
+        val bindingInNewClause =
+          boundVars(chosenClause, chosenClauseVar, clause)
+        assume(bindingInNewClause.size > 0)
+        if (bindingInNewClause.size > 1 || !bindingInNewClause.contains(v)) {
+          return false // bad bindings in new clause
+        }
+        val bindingInChosenClause = boundVars(clause, v, chosenClause)
+        assume(bindingInChosenClause.size > 0)
+        if (
+          bindingInChosenClause.size > 1 || !bindingInChosenClause.contains(
+            chosenClauseVar
+          )
+        ) {
+          return false // bad bindings in already chosen clause
+        }
       }
     }
     choices(clause) = v
@@ -401,18 +484,17 @@ abstract class IJCAI11Compiler(
   private[this] def boundVars(c1: Clause, c1Var: Var, c2: Clause): Set[Var] = {
     val equivalences = c1.atoms.flatMap { lit: Atom =>
       c2.atoms.flatMap { atom2: Atom =>
-        atom2.unifyConstrained(
-          lit,
-          c1.constrs,
-          c2.constrs).getOrElse(List())
+        atom2.unifyConstrained(lit, c1.constrs, c2.constrs).getOrElse(List())
       }
     }
-    equivalences.filter { eq => eq(c1Var) }.foldLeft(Set[Var]()) { _ union _.variables } - c1Var
+    equivalences.filter { eq => eq(c1Var) }.foldLeft(Set[Var]()) {
+      _ union _.variables
+    } - c1Var
   }
 
-  def tryCounting(cnf: CNF) = {
+  def tryAtomCounting(cnf: CNF) = {
     val singletons = cnf.clauses.flatMap { clause =>
-      clause.singletonLiterals.map { literal =>
+      clause.singletonLiterals(cnf.excludedDomains).map { literal =>
         (clause, literal, clause.constrs)
       }
     }
@@ -420,35 +502,52 @@ abstract class IJCAI11Compiler(
       logger.trace("\nAtom counting. Before:")
       logger.trace(cnf.toString)
       // the heuristic is: split on the atom with highest #occurences - domain size
-      val groupedAtoms = singletons.map {
-        case (clause1, lit1, constrs1) =>
-          // ordering by occurence
-          val nbOccurence = singletons.count {
-            case (clause2, lit2, constrs2) =>
-              (clause1 ne clause2) && lit1.unifies(lit2, constrs2, constrs1)
-          }
-          val domain = constrs1.domainFor(lit1.variables.head)
-          val domainSize = sizeHint(domain.root)
-          (lit1, constrs1, nbOccurence - domainSize)
+      val groupedAtoms = singletons.map { case (clause1, lit1, constrs1) =>
+        // ordering by occurence
+        val nbOccurence = singletons.count { case (clause2, lit2, constrs2) =>
+          (clause1 ne clause2) && lit1.unifies(lit2, constrs2, constrs1)
+        }
+        val domain = constrs1.domainFor(lit1.variables.head)
+        val domainSize = sizeHint(domain.root)
+        (lit1, constrs1, nbOccurence - domainSize)
       }
       val ordering = new Ordering[(Atom, Constraints, Int)] {
-        def compare(t1: (Atom, Constraints, Int), t2: (Atom, Constraints, Int)) = {
-          t1._3 - t2._3
-        }
+        def compare(
+            t1: (Atom, Constraints, Int),
+            t2: (Atom, Constraints, Int)
+        ) = t1._3 - t2._3
       }
       val (bestLit, bestConstrs, _) = groupedAtoms.max(ordering)
       val unitConstrs = bestConstrs.project(bestLit.variables)
       val logVar = bestLit.variables.head
-      val excludedConstants = unitConstrs.ineqConstrs(logVar).map { _.asInstanceOf[Constant] }
+      val excludedConstants =
+        unitConstrs.ineqConstrs(logVar).map { _.asInstanceOf[Constant] }
       val domain = unitConstrs.domainFor(logVar)
       val singletonName = Clause(List(bestLit), List(), unitConstrs).toLatex()
       val splitIndex = domain.nbSplits + 1
-      val subdomain = domain.subdomain(""" \top """, """ \bot """, splitIndex.toString, splitIndex.toString, excludedConstants.toSet)
+      val subdomain = domain.subdomain(
+        """ \top """,
+        """ \bot """,
+        splitIndex.toString,
+        splitIndex.toString,
+        excludedConstants.toSet
+      )
       val msg = "Atom counting on $" + singletonName + "$."
 
-      val trueUnitClause = Clause(List(bestLit), List(), unitConstrs.setDomain(logVar, subdomain)).standardizeApart
-      val falseUnitClause = Clause(List(), List(bestLit), unitConstrs.setDomain(logVar, subdomain.complement)).standardizeApart
-      val childCNF = new CNF(trueUnitClause :: falseUnitClause :: cnf.clauses)
+      val trueUnitClause = Clause(
+        List(bestLit),
+        List(),
+        unitConstrs.setDomain(logVar, subdomain)
+      ).standardizeApart
+      val falseUnitClause = Clause(
+        List(),
+        List(bestLit),
+        unitConstrs.setDomain(logVar, subdomain.complement)
+      ).standardizeApart
+      val childCNF = new CNF(
+        trueUnitClause :: falseUnitClause :: cnf.clauses,
+        cnf.excludedDomains + domain
+      )
 
       val node = new CountingNode(cnf, None, domain, subdomain, msg)
       logger.trace("After:")
@@ -474,15 +573,16 @@ abstract class IJCAI11Compiler(
     tryInclusionExclusion,
     tryShatter,
     tryIndependentPartialGrounding,
-    tryCounting
+    tryAtomCounting
   )
 
 }
 
 class IJCAI11LiftedCompiler(
-  sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-  nnfCache: Compiler.Buckets = new Compiler.Buckets
-) extends IJCAI11Compiler(sizeHint, nnfCache) with LiftedCompiler {
+    sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
+    nnfCache: Compiler.Buckets = new Compiler.Buckets
+) extends IJCAI11Compiler(sizeHint, nnfCache)
+    with LiftedCompiler {
 
   def myClone(): IJCAI11LiftedCompiler =
     new IJCAI11LiftedCompiler(sizeHint, cloneCache())
@@ -490,9 +590,10 @@ class IJCAI11LiftedCompiler(
 }
 
 class IJCAI11GroundingCompiler(
-  sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-  nnfCache: Compiler.Buckets = new Compiler.Buckets
-) extends IJCAI11Compiler(sizeHint, nnfCache) with GroundingCompiler {
+    sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
+    nnfCache: Compiler.Buckets = new Compiler.Buckets
+) extends IJCAI11Compiler(sizeHint, nnfCache)
+    with GroundingCompiler {
 
   def myClone(): IJCAI11GroundingCompiler =
     new IJCAI11GroundingCompiler(sizeHint, cloneCache())

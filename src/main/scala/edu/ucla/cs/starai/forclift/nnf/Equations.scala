@@ -121,13 +121,13 @@ case class FunctionCall(
     val args: List[FunctionArgument]
 ) {
 
-  /** The first argument that is an integer constant.
-    *
-    * Throws an exception if no such argument exists.
-    */
-  lazy val firstConstant: String = args.find(_.isConstant) match {
-    case Some(value) => value.terms(0)._2
-    case _           => throw new IllegalStateException("No constant found")
+  lazy val constantArguments: List[String] = args
+    .filter(_.isConstant)
+    .map(_.terms(0)._2)
+
+  lazy val firstConstant: String = {
+    assert(constantArguments.length == 1)
+    constantArguments.head
   }
 
   /** Replaces the ith argument to have value v */
@@ -201,11 +201,17 @@ case class Equations(val equations: List[String] = List()) {
     .map(v => v.substring(1).toInt)
     .max
 
+  def maxFuncNumber(other: Equations): Int =
+    maxFuncNumber.max(other.maxFuncNumber)
+
   lazy val maxVarNumber: Int = equations
     .map(("x[0-9]+".r).findAllIn(_))
     .flatten
     .map(v => v.substring(1).toInt)
     .max
+
+  def maxVarNumber(other: Equations): Int =
+    maxVarNumber.max(other.maxVarNumber)
 
   def replace(oldName: String, newName: String): Equations =
     map(equation => equation.replace(oldName, newName))
@@ -223,7 +229,9 @@ case class Equations(val equations: List[String] = List()) {
 
   // ============================= Everything else =============================
 
-  private[this] lazy val baseCases: Set[String] = {
+  // NOTE: The 'set' part is crucial here and has to work on strings rather
+  // than FunctionCalls (at least for now)
+  private[this] lazy val baseCases: Set[FunctionCall] = {
     var baseCases = Set[String]()
     for {
       dependency <- withSumsExpanded.dependencies
@@ -238,11 +246,14 @@ case class Equations(val equations: List[String] = List()) {
       for (l <- 0 to arg.terms(1)._2.toInt - 1)
         baseCases += dependency._1.replaceArgument(i, l).toString
     }
-    baseCases
+    baseCases.map(FunctionCall(_))
   }
 
   /** Make the occurrences of f0 consistent with the convention used on `name`
-    * in the previous equations
+    * in the previous equations.
+    *
+    * @param lhsCall
+    *   the function call in the original set of equations
     */
   def changeArguments(
       lhsCall: FunctionCall,
@@ -266,7 +277,7 @@ case class Equations(val equations: List[String] = List()) {
             .toArray
             .filter(variablesToDomains(_) != constDomain)
           var transformedArgs = actualFuncArgs.clone()
-          for (index <- 0 to args.length - 1)
+          for (index <- (0 to args.length - 1).filter(indexMap(_) != -1))
             transformedArgs(indexMap(index)) = args(index)
           "f0[" + transformedArgs.mkString(", ") + "]"
         }
@@ -296,46 +307,10 @@ case class Equations(val equations: List[String] = List()) {
     })
   }
 
-  /** Changes the variable names to the previous ones.
-    *
-    * Does this only for the free variables, i.e. those occuring as parameters
-    * for the equation containing x0 on the left-hand side. If there is a
-    * collision, resolve it by changing the other variable to a new one.
+  /** Maps each index of f0 parameters to the index of actualFuncArgs where that
+    * parameter appears (except parameters associated with the domain that's
+    * being eliminated (i.e., constDomain) (according to variablesToDomains2)).
     */
-  def changeVariableNames(
-      oldEquations: Equations,
-      variablesToDomains: BiMap[String, Domain],
-      variablesToDomains2: Map[String, Domain]
-  ): Equations = {
-    var varNumber = oldEquations.maxVarNumber.max(maxVarNumber)
-    var newValue = equations(indexOfF0)
-    val indexOfEquals = newValue.indexOf('=')
-    val freeVars = newValue
-      .substring(3, indexOfEquals - 1)
-      .split(',')
-      .map(_.replaceAll(" ", ""))
-      .toSet
-    val f0BoundedVars = ("x[0-9]+".r)
-      .findAllIn(newValue)
-      .toSet
-      .diff(freeVars)
-    for (freeVar <- freeVars) {
-      val toReplace =
-        variablesToDomains.inverse.get(variablesToDomains2(freeVar))
-      if (toReplace != freeVar) {
-        // check if there is a collision and handle it
-        if (f0BoundedVars.contains(toReplace)) {
-          // get a new variable name
-          varNumber += 1
-          newValue.replaceAll(toReplace, "x" + varNumber.toString)
-        }
-      }
-      newValue.replaceAll(freeVar, "y" + toReplace.substring(1))
-    }
-    newValue.replace('y', 'x')
-    updateF0(newValue)
-  }
-
   def createIndexMap(
       actualFuncArgs: Array[String],
       variablesToDomains2: Map[String, Domain],
@@ -365,42 +340,38 @@ case class Equations(val equations: List[String] = List()) {
       wcnf: WeightedCNF
   ): Equations = {
     var definitions = Equations()
-    for (baseCaseLhs <- baseCases) {
-      val lhsCall = FunctionCall(baseCaseLhs)
+    for (lhsCall <- baseCases) {
+      println("\nTrying to find a base case for " + lhsCall + "\n")
       val funcSignatureStr = equationForFunction(lhsCall.name)
       val signature = FunctionCall(
         funcSignatureStr.substring(0, funcSignatureStr.indexOf('='))
       )
-      val diffIndex: Int =
+      val firstDifference =
         signature.args.zipWithIndex.zip(lhsCall.args).indexWhere {
           case ((a, i), b) => a.terms(0)._2 != b.terms(0)._2
         }
-      val constDomain: Domain = variablesToDomains(
-        signature.args(diffIndex).terms(0)._2
+      val constDomain = variablesToDomains(
+        signature.args(firstDifference).terms(0)._2
       )
-      for (
-        (simplifiedWcnf, multiplier) <- Equations
-          .transformClauses(
-            lhsCall,
-            new WeightedCNF(
-              new CNF(nameToFormula(lhsCall.name)),
-              wcnf.domainSizes,
-              wcnf.predicateWeights,
-              wcnf.conditionedAtoms,
-              wcnf.compilerBuilder
-            ),
-            constDomain
+      val newWcnf = wcnf.copy(cnf = new CNF(nameToFormula(lhsCall.name)))
+      val (simplifiedWcnf, multiplier) = lhsCall.firstConstant.toInt match {
+        case 0 => Equations.processZeroConstant(newWcnf, constDomain)
+        case 1 => Equations.processOneConstant(newWcnf, constDomain)
+        case _ =>
+          throw new IllegalStateException(
+            "The only constants allowed are 0 and 1"
           )
-      ) {
-        definitions ++= withSumsExpanded.propagate(
-          lhsCall,
-          constDomain,
-          signature.name,
-          simplifiedWcnf,
-          multiplier,
-          HashBiMap.create(variablesToDomains)
-        )
       }
+
+      definitions ++= withSumsExpanded.propagate(
+        lhsCall,
+        constDomain,
+        signature.name,
+        simplifiedWcnf,
+        multiplier,
+        HashBiMap.create(variablesToDomains)
+      )
+      println("definitions: " + definitions.equations)
     }
     definitions
   }
@@ -420,39 +391,44 @@ case class Equations(val equations: List[String] = List()) {
       /* If there are no clauses after simplification, then there is
                  only one model, so no need to call Crane. This can
                  happen only if a domain is made empty. */
-      val indexOfFunc = equations.indexWhere(_.startsWith(name))
-      val indexOfEquals = equations(indexOfFunc).indexOf('=')
-      newEquations += equations(indexOfFunc)
-        .substring(0, indexOfEquals)
+      val equation = equationForFunction(name)
+      newEquations += equation
+        .substring(0, equation.indexOf('='))
         .replaceAll(name, "f0") + "= 1"
     } else {
       // finding the base cases using Crane
       val (newEquations2, variablesToDomains2) = simplifiedWcnf.asEquations
-
-      val newEquations3 = newEquations2.withoutSpaces.changeVariableNames(
-        this,
-        variablesToDomains,
-        variablesToDomains2
-      )
-      newEquations = newEquations3.changeArguments(
-        lhsCall,
+      newEquations = newEquations2.withoutSpaces
+      println("propagate0: " + newEquations.equations)
+      val newF0 = Equations.changeVariableNames(
+        newEquations.equations(newEquations.indexOfF0),
         variablesToDomains,
         variablesToDomains2,
-        constDomain
+        maxVarNumber(newEquations)
       )
+      newEquations = newEquations
+        .updateF0(newF0)
+        .changeArguments(
+          lhsCall,
+          variablesToDomains,
+          variablesToDomains2,
+          constDomain
+        )
     }
 
-    val newEquations4 = newEquations.updateF0(
+    println("propagate1: " + newEquations.equations)
+    newEquations = newEquations.updateF0(
       _.replaceAll(
         variablesToDomains.inverse.get(constDomain),
         lhsCall.firstConstant
       )
     )
+    println("propagate2: " + newEquations.equations)
 
-    newEquations4.changeFunctionNames(
+    newEquations.changeFunctionNames(
       multiplier,
       lhsCall.toString,
-      maxFuncNumber.max(newEquations.maxFuncNumber)
+      maxFuncNumber(newEquations)
     )
   }
 
@@ -462,6 +438,47 @@ object Equations {
 
   private case class BaseCaseIndexedConstant(val i: Int) {
     override def toString = "c" + (if (i > 0) ("'" * i) else "")
+  }
+
+  /** Changes the variable names to the previous ones.
+    *
+    * Does this only for the free variables, i.e. those occuring as parameters
+    * for the equation containing x0 on the left-hand side.
+    */
+  def changeVariableNames(
+      equation: String,
+      variablesToDomains: BiMap[String, Domain],
+      variablesToDomains2: Map[String, Domain],
+      initialVarNumber: Int
+  ): String = {
+    var varNumber = initialVarNumber
+    var newValue = equation
+    val indexOfEquals = newValue.indexOf('=')
+    val freeVars = newValue
+      .substring(3, indexOfEquals - 1)
+      .split(',')
+      .map(_.replaceAll(" ", ""))
+      .toSet
+    val f0BoundedVars = ("x[0-9]+".r)
+      .findAllIn(newValue)
+      .toSet
+      .diff(freeVars)
+    for (freeVar <- freeVars) {
+      val toReplace =
+        variablesToDomains.inverse.get(variablesToDomains2(freeVar))
+      if (toReplace != freeVar) {
+        // check if there is a collision and handle it
+        if (f0BoundedVars.contains(toReplace)) {
+          // get a new variable name
+          varNumber += 1
+          newValue.replaceAll(toReplace, "x" + varNumber.toString)
+        }
+      }
+      newValue.replaceAll(freeVar, "y" + toReplace.substring(1))
+    }
+    newValue.replace('y', 'x')
+    println("changeVariableNames: FROM " + equation + " TO " + newValue)
+    newValue
   }
 
   private[this] def findClosingBracket(str: String, i0: Int): Int = {
@@ -583,51 +600,24 @@ object Equations {
     args :+ str.substring(prevSep + 1, str.length() - 1)
   }
 
-  private def transformClauses(
-      functionCall: FunctionCall,
-      wcnf: WeightedCNF,
-      constDomain: Domain
-  ): ListBuffer[(WeightedCNF, String)] = {
-    val transformedClauses: ListBuffer[(WeightedCNF, String)] = ListBuffer()
-    var const: Int = -1
-
-    // finding the constant
-    for (arg <- functionCall.args) {
-      if (arg.terms.length == 1 && arg.terms(0)._2.matches("[0-9]+")) {
-        if (const != -1)
-          return ListBuffer()
-        const = arg.terms(0)._2.toInt
-      }
-    }
-
-    if (const == -1)
-      throw new IllegalStateException(
-        "invalid arguments to function transformClauses"
-      )
-    const match {
-      case 0 => transformedClauses += processZeroConstant(wcnf, constDomain)
-      case 1 => transformedClauses += processOneConstant(wcnf, constDomain)
-      case _ =>
-        throw new IllegalStateException(
-          "No support for base cases with more than 2 elements in a domain"
-        )
-    }
-    transformedClauses
-  }
-
+  // TODO (Paulius): rename to propagate instead of process
   private def processZeroConstant(
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
+    println("processZeroConstant(" + constDomain + ")")
+    println("wcnf.cnf before: " + wcnf.cnf)
     val simplifiedClauses: ListBuffer[Clause] = ListBuffer()
     var containsNullConst: Boolean = false
     for (clause: Clause <- wcnf.cnf.self if !containsNullConst) {
       /* check if the null domain is present in the domain constraints of
        * the clause */
-      if (clause.constrs.elemConstrs.domains.contains(constDomain)) {
+      if (!clause.constrs.elemConstrs.domains.contains(constDomain)) {
+        simplifiedClauses += clause
+      } else {
         // check if there is a predicate none of whose arguments belong to the null domain
-        val newPosList: ListBuffer[Atom] = ListBuffer()
-        val newNegList: ListBuffer[Atom] = ListBuffer()
+        val newPosList = ListBuffer[Atom]()
+        val newNegList = ListBuffer[Atom]()
         for (atom <- clause.atoms if !containsNullConst) {
           var containsNullDom: Boolean = false
           for (arg <- atom.args if !containsNullConst) {
@@ -654,27 +644,24 @@ object Equations {
           simplifiedClauses += Clause(
             newPosList.toList,
             newNegList.toList,
-            Constraints(elemConstrs = clause.constrs.elemConstrs)
+            Constraints(elemConstrs =
+              clause.constrs.elemConstrs.filter(_._2 != constDomain)
+            )
           )
-      } else {
-        simplifiedClauses += clause
       }
     }
-    val newWcnf = new WeightedCNF(
-      new CNF(simplifiedClauses.toList),
-      wcnf.domainSizes,
-      wcnf.predicateWeights,
-      wcnf.conditionedAtoms,
-      wcnf.compilerBuilder
+    println("wcnf.cnf after: " + simplifiedClauses.toList)
+    (
+      wcnf.copy(cnf = new CNF(simplifiedClauses.toList)),
+      if (containsNullConst) "0" else "1"
     )
-    val multiplier = if (containsNullConst) "0" else "1"
-    (newWcnf, multiplier)
   }
 
   private def processOneConstant(
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
+    println("processOneConstant")
     val constantsInUnitDomain =
       wcnf.cnf.constants.filter(_.domain == constDomain)
     if (constantsInUnitDomain.size > 1) {
@@ -686,47 +673,32 @@ object Equations {
         }
         .map { _.value.asInstanceOf[BaseCaseIndexedConstant].i }
         .toSet
-      val newIndex =
-        Stream.from(0).find { index => !existingIndices(index) }.get
-      val c = new Constant(BaseCaseIndexedConstant(newIndex))
-      val newConst: Constant = constantsInUnitDomain.size match {
-        case 0 => c.setDomain(constDomain)
+      val newIndex = Stream.from(0).find(i => !existingIndices(i)).get
+      val newConst = constantsInUnitDomain.size match {
+        case 0 =>
+          new Constant(BaseCaseIndexedConstant(newIndex)).setDomain(constDomain)
         case 1 => constantsInUnitDomain.toList(0)
       }
-      val newClauses = wcnf.cnf.clauses.flatMap { clause =>
+
+      val newClauses = wcnf.cnf.clauses.map { clause =>
         val vars = clause.literalVariables.filter {
           clause.constrs.domainFor(_).equals(constDomain)
         }
-        val contradictingIneq = clause.constrs.ineqConstrs.filter((t) => {
-          vars.contains(t._1)
-        })
         var newClause = clause
-        if (contradictingIneq.size != 0) {
+        if (
+          clause.constrs.ineqConstrs.filter(t => vars.contains(t._1)).nonEmpty
+        )
           newClause = new Clause(
             clause.posLits ++ clause.negLits,
             clause.posLits ++ clause.negLits,
             new Constraints(
-              elemConstrs = clause.constrs.elemConstrs.filter(t => {
-                val ret: Boolean = (t._2 != constDomain)
-                ret
-              })
+              elemConstrs =
+                clause.constrs.elemConstrs.filter(_._2 != constDomain)
             )
           )
-        }
-        List(
-          newClause.substitute((variable: Var) =>
-            if (vars.contains(variable)) newConst else variable
-          )
-        )
+        newClause.substitute((v: Var) => if (vars.contains(v)) newConst else v)
       }
-      val newWcnf = new WeightedCNF(
-        new CNF(newClauses),
-        wcnf.domainSizes,
-        wcnf.predicateWeights,
-        wcnf.conditionedAtoms,
-        wcnf.compilerBuilder
-      )
-      (newWcnf, "1")
+      (wcnf.copy(cnf = new CNF(newClauses)), "1")
     }
   }
 

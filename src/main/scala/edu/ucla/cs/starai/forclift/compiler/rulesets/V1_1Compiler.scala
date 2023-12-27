@@ -51,7 +51,7 @@ abstract class V1_1Compiler(
     tryInclusionExclusion,
     tryShatter,
     tryIndependentPartialGrounding, // O(log(n))
-    tryCounting, // O(n)
+    tryAtomCounting, // O(n)
     tryDomainRecursion // is O(log(n)) now! But assumes no unary predicates
   )
 

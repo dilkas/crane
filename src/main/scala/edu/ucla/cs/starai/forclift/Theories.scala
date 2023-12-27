@@ -22,7 +22,14 @@ import scala.collection.immutable.Stream
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
 
-final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
+/** @param excludedDomains
+  *   is used by ImprovedDomainRecursion and AtomCounting to avoid using more
+  *   than one such operation on the same domain.
+  */
+final case class CNF(
+    val clauses: List[Clause],
+    val excludedDomains: Set[Domain] = Set.empty
+) extends SetProxy[Clause] {
 
   lazy val self = clauses.toSet
 
@@ -39,7 +46,10 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
   def domains = clauses.flatMap { _.domains }.toSet
 
   def domainsWithVariablesInLiterals =
-    clauses.flatMap { c => c.domainsFor(c.literalVariables) }.toSet
+    clauses
+      .flatMap { c => c.domainsFor(c.literalVariables) }
+      .toSet
+      .diff(excludedDomains)
 
   lazy val atoms = clauses.flatMap { _.atoms }.toSet
 
@@ -56,14 +66,14 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
 
   def toFastWfomc = clauses.map { _.toFastWfomc }.mkString(" & ")
 
-  override def +(clause: Clause) = new CNF(clause :: clauses)
+  override def +(clause: Clause) = new CNF(clause :: clauses, excludedDomains)
 
   def isTautology = clauses.isEmpty
 
   def removeTautologies: CNF = {
     val tautologyFreeClauses = clauses.filterNot { _.isTautology }
     if (tautologyFreeClauses.size == clauses.size) this
-    else new CNF(tautologyFreeClauses)
+    else new CNF(tautologyFreeClauses, excludedDomains)
   }
 
   def toPositiveUnitClauses: Set[PositiveUnitClause] =
@@ -86,7 +96,7 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
   }
 
   def shatterInternalEqualities: CNF = {
-    new CNF(clauses.flatMap { _.shatterInternalEqualities })
+    new CNF(clauses.flatMap { _.shatterInternalEqualities }, excludedDomains)
   }
 
   lazy val shatter: CNF = {
@@ -155,10 +165,13 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
       })
     } while (somethingChanged)
     if (clauses.exists { _.needsIneqDomainShattering }) {
-      (new CNF(clauses.flatMap { _.shatterIneqDomains })).shatterIneqs
+      (new CNF(
+        clauses.flatMap { _.shatterIneqDomains },
+        excludedDomains
+      )).shatterIneqs
     } else {
       if (!somethingOnceChanged) this
-      else new CNF(clauses)
+      else new CNF(clauses, excludedDomains)
     }
   }
 
@@ -199,19 +212,22 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
       })
     } while (somethingChanged)
     if (clauses.exists { _.needsIneqDomainShattering }) {
-      (new CNF(clauses.flatMap { _.shatterIneqDomains })).shatterDomains
+      (new CNF(
+        clauses.flatMap { _.shatterIneqDomains },
+        excludedDomains
+      )).shatterDomains
     } else {
       if (!somethingOnceChanged) this
-      else new CNF(clauses)
+      else new CNF(clauses, excludedDomains)
     }
   }
 
   def ++(other: CNF) = {
-    new CNF(clauses ++ other.clauses)
+    new CNF(clauses ++ other.clauses, excludedDomains ++ other.excludedDomains)
   }
 
   def ground(domainSizes: DomainSizes): CNF = {
-    new CNF(clauses.flatMap { _.ground(domainSizes) })
+    new CNF(clauses.flatMap { _.ground(domainSizes) }, excludedDomains)
   }
 
   def condition(cliteral: UnitClause): CNF = {
@@ -223,7 +239,7 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
       case _ =>
         throw new IllegalStateException("Clause not positive or negative")
     }
-    new CNF(conditionedClauses)
+    new CNF(conditionedClauses, excludedDomains)
   }
 
   def simplify(ignoredClauses: Set[Clause] = Set.empty): CNF = {
@@ -265,7 +281,7 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
         }
       val (propagated, simplifiedRest) =
         propagate(propagatableUnitClauses, clauses)
-      val newCnf = (new CNF(propagated ++ simplifiedRest))
+      val newCnf = (new CNF(propagated ++ simplifiedRest, excludedDomains))
         .simplify(ignoredClauses ++ propagated)
       newCnf
     } else this
@@ -292,7 +308,11 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
     }
     val (dep, indep) = partition(List(clauses.head), clauses.tail)
     if (indep.isEmpty) List(this)
-    else (new CNF(dep)) :: (new CNF(indep)).independentSubtheories
+    else
+      (new CNF(dep, excludedDomains)) :: (new CNF(
+        indep,
+        excludedDomains
+      )).independentSubtheories
   }
 
   override def toString = {
@@ -301,7 +321,7 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
   }
 
   def eqToConstraints: CNF = {
-    new CNF(clauses.map(_.eqToConstraints))
+    new CNF(clauses.map(_.eqToConstraints), excludedDomains)
   }
 
 }
@@ -309,7 +329,9 @@ final case class CNF(val clauses: List[Clause]) extends SetProxy[Clause] {
 /** Most of this object is the implementation of identifyRecursion. */
 object CNF {
 
-  def apply(clauses: Clause*) = new CNF(clauses.toList)
+  def apply(clauses: Clause*) = new CNF(clauses.toList, Set.empty)
+  def apply(excludedDomains: Set[Domain], clauses: Clause*) =
+    new CNF(clauses.toList, excludedDomains)
 
   /** Describes the relationship between the domains of both (i.e., the new and
     * the old) formulas.
@@ -326,10 +348,13 @@ object CNF {
   /** Tries to identify newFormula as oldFormula but with some domains replaced
     * by their subdomains, irrespective of variable names.
     *
-    * @param newFormula the formula that corresponds to the new circuit node
-    *        which is being added
-    * @param oldFormula the formula for an already-existing node
-    * @param partialMap maps domains of oldFormula to domains of newFormula
+    * @param newFormula
+    *   the formula that corresponds to the new circuit node which is being
+    *   added
+    * @param oldFormula
+    *   the formula for an already-existing node
+    * @param partialMap
+    *   maps domains of oldFormula to domains of newFormula
     *
     * Before returning the completed version of partialMap, we express all
     * domains of newFormula that appear in partialMap as subdomains of the
@@ -343,7 +368,7 @@ object CNF {
   ): Option[Map[Domain, Domain]] = {
     if (
       newFormula.size != oldFormula.size ||
-        newFormula.hashCode != oldFormula.hashCode
+      newFormula.hashCode != oldFormula.hashCode
     ) {
       None
     } else if (oldFormula.isEmpty && newFormula.isEmpty) {
@@ -351,16 +376,20 @@ object CNF {
       Some(partialMap)
     } else {
       for (clause1 <- oldFormula) {
-        val updatedOldFormula = new CNF((oldFormula - clause1).toList)
+        val updatedOldFormula =
+          new CNF((oldFormula - clause1).toList, oldFormula.excludedDomains)
         for (clause2 <- newFormula.filter(_.hashCode == clause1.hashCode)) {
-          val updatedNewFormula = new CNF((newFormula - clause2).toList)
+          val updatedNewFormula =
+            new CNF((newFormula - clause2).toList, newFormula.excludedDomains)
 
-          val bijections = clause1.variableAndDomainBijections(clause2,
-                                                               partialMap)
+          val bijections =
+            clause1.variableAndDomainBijections(clause2, partialMap)
           for {
             (bijection, domainBijection) <- bijections
-            if clause1.substitute(bijection).
-            substituteDomains(domainBijection).exactlyEquals(clause2)
+            if clause1
+              .substitute(bijection)
+              .substituteDomains(domainBijection)
+              .exactlyEquals(clause2)
           } {
             var foundConstraintRemoval2 = foundConstraintRemoval
             try {

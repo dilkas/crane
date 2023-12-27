@@ -20,7 +20,7 @@
 class Expression {
 public:
   Expression() = default;
-  Expression(Expression *other) : tokens_(std::move(other->tokens_)) {}
+  Expression(Expression *other);
   Expression(const std::string &);
 
   Expression(std::unique_ptr<Token> token) {

@@ -28,7 +28,7 @@ abstract class NIPS11Compiler(
 ) extends IJCAI11Compiler(sizeHint, nnfCache) {
 
   def tryDomainRecursion(cnf: CNF) = {
-    assume(cnf.clauses.forall { _.singletonLiterals.isEmpty })
+    assume(cnf.clauses.forall { _.singletonLiterals().isEmpty })
     assume(cnf.clauses.forall { _.groundLiterals.isEmpty })
     if (cnf.clauses.forall { clause =>
       val clauseVars = clause.literalVariables
@@ -59,7 +59,7 @@ abstract class NIPS11Compiler(
           }
         }
       }
-      val mixedCNF = new CNF(mixedClauses)
+      val mixedCNF = new CNF(mixedClauses, cnf.excludedDomains)
       val headVar1 = cnf.clauses.head.literalVariables.head
       val headVar2 = (cnf.clauses.head.literalVariables - headVar1).head
       val groundClauses = if (cnf.clauses.head.constrs.ineqConstrs(headVar1).contains(headVar2)) {
@@ -73,7 +73,7 @@ abstract class NIPS11Compiler(
       } else {
         cnf.clauses.map { _.substitute { v => constant } }
       }
-      val groundCNF = new CNF(groundClauses)
+      val groundCNF = new CNF(groundClauses, cnf.excludedDomains)
       val msg = "Domain recursion on $" + domain + "$"
       val mixedNnf = tryIndependentPartialGrounding(mixedCNF)
       assume(mixedNnf.nonEmpty) // property of DR?

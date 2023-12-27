@@ -43,7 +43,9 @@ public:
   void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
                     bool) const override;
 
-  // TODO (Paulius): this function cannot be used to print a function call
+  std::string ToString() const;
+
+  /** This function cannot be used to print a function call */
   std::string ToString(
       std::function<std::string(const Token &)> get_func_call) const override {
     return get_func_call(*this);

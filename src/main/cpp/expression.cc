@@ -4,6 +4,11 @@
 #include <sstream>
 #include <stack>
 
+Expression::Expression(Expression *other) {
+  for (const auto &token : other->tokens_)
+    tokens_.push_back(token->Clone());
+}
+
 // TODO (Paulius): I'm guessing this won't work for a unary minus sign in
 // front of anything other than an integer.
 Expression::Expression(const std::string &exp_str) {

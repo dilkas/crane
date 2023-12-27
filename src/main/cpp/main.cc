@@ -30,11 +30,12 @@
 /** Generates C++ definitions for the equations */
 std::string generate_function_def(std::string eqn) {
   std::stringstream code;
-  size_t loc = eqn.find('=');
-  std::unique_ptr<FunctionCall> lhs =
-      std::unique_ptr<FunctionCall>(FunctionCall::Create(eqn.substr(0, loc)));
+  size_t equalSign = eqn.find('=');
+  std::unique_ptr<FunctionCall> lhs = std::unique_ptr<FunctionCall>(
+      FunctionCall::Create(eqn.substr(0, equalSign)));
   std::unique_ptr<Expression> rhs =
-      Expression(eqn.substr(loc + 1, eqn.size() - loc - 1)).HandlePower();
+      Expression(eqn.substr(equalSign + 1, eqn.size() - equalSign - 1))
+          .HandlePower();
   std::string signature =
       lhs->GetFunctionSignature("mpz_class", "unsigned long", "");
   code << signature << "{\n";
@@ -89,20 +90,16 @@ std::string generate_function_def(std::string eqn) {
   // handling the rest of the cases
   for (unsigned i = 0; i < max_sub_vec.size(); i++) {
     for (int sub = 0; sub < max_sub_vec.at(i).second; sub++) {
+      auto transformed = lhs->CloneFunctionCall();
+      for (unsigned j = 0; j < transformed->func_args.size(); j++) {
+        if (transformed->func_args.at(j)->Front()->GetVariable() ==
+            max_sub_vec.at(i).first) {
+          transformed->func_args.at(j)->SetFront(sub);
+          break;
+        }
+      }
       code << "\telse if (" << max_sub_vec.at(i).first << " == " << sub << "){";
-      code << "\n\t\treturn "
-           << lhs->ToString([max_sub_vec, i, sub](const Token &e) {
-                auto transformed_e =
-                    static_cast<const FunctionCall &>(e).CloneFunctionCall();
-                for (unsigned j = 0; j < transformed_e->func_args.size(); j++) {
-                  if (transformed_e->func_args.at(j)->Front()->GetVariable() ==
-                      max_sub_vec.at(i).first) {
-                    transformed_e->func_args.at(j)->SetFront(sub);
-                    break;
-                  }
-                }
-                return transformed_e->GetFunctionSignature("", "", "");
-              })
+      code << "\n\t\treturn " << transformed->GetFunctionSignature("", "", "")
            << ";\n\t}\n";
     }
   }

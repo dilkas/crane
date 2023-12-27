@@ -66,6 +66,10 @@ class CompilerWrapper(
     * update the 'domains' field of NNFNode.
     */
   override def compile(cnf: CNF): List[NNFNode] = {
+    logger.info("")
+    logger.info("Compiling formula:")
+    logger.info(cnf.toString)
+    logger.info("")
     val nnfs = compiler.compile(cnf)
     nnfs.foreach { nnf =>
       {

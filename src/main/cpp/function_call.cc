@@ -96,6 +96,18 @@ void FunctionCall::HandlePower(
   exp_stack.push(std::move(list));
 }
 
+std::string FunctionCall::ToString() const {
+  std::stringstream ss;
+  ss << func_name << "(";
+  for (size_t i = 0; i < func_args.size(); i++) {
+    if (i != 0)
+      ss << ", ";
+    ss << func_args.at(i)->ToString();
+  }
+  ss << ")";
+  return ss.str();
+}
+
 FunctionCall *InequalityFunctionCall::CloneFunctionCall() const {
   std::vector<Expression *> new_func_args;
   for (auto const &arg : func_args)

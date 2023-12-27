@@ -4,6 +4,7 @@
 *.class
 *.log
 .bloop
+.vscode/
 
 # hide external dependency directory
 external/*

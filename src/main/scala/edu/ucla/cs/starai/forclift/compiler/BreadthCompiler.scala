@@ -69,27 +69,26 @@ class BreadthCompiler(
     val compiler = compilerBuilder
     val initialCircuit = compiler.applyGreedyRules(cnf)
 
+
+    try {
     if (initialCircuit.formulas.isEmpty) {
       foundSolution(initialCircuit.circuit.get)
     } else {
       val q = Queue(initialCircuit)
-      // val q = PriorityQueue(compiler.applyGreedyRules(cnf))(Ordering.by(_.priority))
       var depth = 0
-      try {
         while (depth <= maxDepth && q.nonEmpty) {
           println("depth: " + depth)
           val partialCircuit = q.dequeue
           if (partialCircuit.depth > depth) {
             depth = partialCircuit.depth
           }
-          if (depth <= maxDepth) {
+          if (depth <= maxDepth)
             q ++= partialCircuit.nextCircuits(this)
-          }
         }
+    }
       } catch {
         case e: EndSearchException => {}
       }
-    }
 
     if (!circuits.isEmpty) {
       circuits

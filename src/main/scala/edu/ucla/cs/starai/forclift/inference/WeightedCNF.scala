@@ -106,9 +106,12 @@ case class WeightedCNF(
     )
   }.flatten
 
+  // TODO (Paulius): must use smooth NNFs in the future (but then in
+  // Equations.scala I must take care of updating predicate weights when using
+  // wcnf.copy)
   lazy val asEquations: (Equations, Map[String, Domain]) = {
     var variablesToDomains = Map[String, Domain]()
-    val equations = smoothNnfs.map { nnf =>
+    val equations = nnfs.map { nnf =>
       val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
       val (recursions, functionNameToFormula, v2d) = MainOutputVisitor(
@@ -293,7 +296,7 @@ case class WeightedCNF(
 
     val firstToConditionablize =
       shatteredCnf.toPositiveUnitClauses.view.filter { catom =>
-        catom.atom.isSingleton && conditionableAtoms.exists {
+        catom.atom.isSingleton() && conditionableAtoms.exists {
           conditionableAtom =>
             conditionableAtom.subsumes(catom) || conditionableAtom.equivalent(
               catom

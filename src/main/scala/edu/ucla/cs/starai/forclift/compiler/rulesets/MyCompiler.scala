@@ -23,15 +23,15 @@ import edu.ucla.cs.starai.forclift._
 
 /** The latest version of the compiler.
   *
-  * Adds three more rules:
-  * 1) an improved version of domain recursion capable of creating cycles,
-  * 2) constraint removal that removes a bunch of 'X != x' constraints by
-  *    creating a new domain without domain value x,
-  * 3) contradiction filter that finds a completely empty clause and removes
-  *    all other clauses so that the formula would be immediately identified as
-  *    unsatisfiable by another rule.
+  * Adds three more rules: 1) an improved version of domain recursion capable of
+  * creating cycles, 2) constraint removal that removes a bunch of 'X != x'
+  * constraints by creating a new domain without domain value x, 3)
+  * contradiction filter that finds a completely empty clause and removes all
+  * other clauses so that the formula would be immediately identified as
+  * unsatisfiable by another rule.
   *
-  * @param nnfCache see the AbstractCompiler class
+  * @param nnfCache
+  *   see the AbstractCompiler class
   */
 abstract class MyCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
@@ -39,8 +39,8 @@ abstract class MyCompiler(
 ) extends V1_1Compiler(sizeHint, nnfCache) {
 
   def tryImprovedDomainRecursion(cnf: CNF) =
-    cnf.domainsWithVariablesInLiterals.map {
-      domain => {
+    cnf.domainsWithVariablesInLiterals.map { domain =>
+      {
         val constant = groundingConstantFor(cnf, domain)
         val mixedClauses = cnf.clauses.flatMap { clause =>
           {
@@ -68,7 +68,7 @@ abstract class MyCompiler(
             }
           }
         }
-        val mixedCNF = new CNF(mixedClauses)
+        val mixedCNF = new CNF(mixedClauses, cnf.excludedDomains + domain)
         val msg = "Improved domain recursion on $" + domain + "$."
         val node = new ImprovedDomainRecursionNode(
           cnf,
@@ -104,13 +104,13 @@ abstract class MyCompiler(
                     !atom.constants.contains(constant)
                   }
                 } &&
-                  cnf.forall { clause =>
-                    clause.allVariables.forall { variable: Var =>
-                      clause.constrs.domainFor(variable) !=
-                        originalDomain ||
-                        clause.constrs.ineqConstrs(variable).contains(constant)
-                    }
+                cnf.forall { clause =>
+                  clause.allVariables.forall { variable: Var =>
+                    clause.constrs.domainFor(variable) !=
+                      originalDomain ||
+                      clause.constrs.ineqConstrs(variable).contains(constant)
                   }
+                }
               ) {
                 val newIndex = (originalDomain.nbSplits + 1).toString
                 val newDomain = originalDomain.subdomain(
@@ -118,11 +118,14 @@ abstract class MyCompiler(
                   newIndex,
                   excludedConstants = Set(constant)
                 )
-                val newCnf = CNF(cnf.map { clause =>
-                                   clause
-                                     .removeConstraints(constant)
-                                     .replaceDomains(originalDomain, newDomain)
-                                 }.toList: _*)
+                val newCnf = CNF(
+                  cnf.excludedDomains,
+                  cnf.map { clause =>
+                    clause
+                      .removeConstraints(constant)
+                      .replaceDomains(originalDomain, newDomain)
+                  }.toList: _*
+                )
                 val node = new ConstraintRemovalNode(
                   cnf,
                   None,
@@ -151,7 +154,14 @@ abstract class MyCompiler(
       c.isConditionalContradiction && c.isUnconditional
     }
     if (contradictionClauseOption.nonEmpty) {
-      List((None, List(new CNF(List(contradictionClauseOption.get)))))
+      List(
+        (
+          None,
+          List(
+            new CNF(List(contradictionClauseOption.get), cnf.excludedDomains)
+          )
+        )
+      )
     } else {
       List[Result]()
     }
@@ -180,7 +190,7 @@ abstract class MyCompiler(
       tryInclusionExclusion, // +2
       tryShatter, // 0
       tryIndependentPartialGrounding, // 0
-      tryCounting, // 0
+      tryAtomCounting, // 0
       tryImprovedDomainRecursion // 0, new
     )
 
