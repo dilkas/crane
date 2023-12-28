@@ -39,7 +39,8 @@ public:
   void HandlePower(std::stack<std::list<std::unique_ptr<Token>>> &,
                    bool) const override;
   void MaxDecrementPerVariable(std::stack<Expression const *> &,
-                               std::map<std::string, int> &) const override;
+                               std::map<std::string, int> &,
+                               std::string) const override;
   void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
                     bool) const override;
 
@@ -91,7 +92,8 @@ public:
       : FunctionCall(func_name, func_args) {}
   FunctionCall *CloneFunctionCall() const override;
   void MaxDecrementPerVariable(std::stack<Expression const *> &,
-                               std::map<std::string, int> &) const override;
+                               std::map<std::string, int> &,
+                               std::string) const override;
   std::string ToCppString(std::vector<std::string>) const override;
 };
 

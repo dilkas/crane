@@ -1,13 +1,9 @@
 package edu.ucla.cs.starai.forclift.nnf
 
 import scala.collection._
-import scala.collection.JavaConversions._
 import scala.collection.mutable.Stack
 import scala.collection.mutable.ListBuffer
 import scala.util.control.Breaks._
-
-import com.google.common.collect.BiMap
-import com.google.common.collect.HashBiMap
 
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.constraints.Constraints
@@ -238,6 +234,7 @@ case class Equations(val equations: List[String] = List()) {
     for {
       dependency <- withSumsExpanded.dependencies
       rhsFunc <- dependency._2
+      if rhsFunc.name == dependency._1.name
       (arg, i) <- rhsFunc.args.zipWithIndex
       if arg.isSuitableForBaseCases
     } {
@@ -255,7 +252,7 @@ case class Equations(val equations: List[String] = List()) {
     */
   def changeArguments(
       lhsCall: FunctionCall,
-      variablesToDomains: BiMap[String, Domain],
+      variablesToDomains: Map[String, Domain],
       variablesToDomains2: Map[String, Domain],
       constDomain: Domain
   ): Equations = {
@@ -275,7 +272,10 @@ case class Equations(val equations: List[String] = List()) {
             .toArray
             .filter(variablesToDomains(_) != constDomain)
           var transformedArgs = actualFuncArgs.clone()
-          for (index <- (0 to args.length - 1).filter(i => indexMap.contains(i) && indexMap(i) != -1))
+          for (
+            index <- (0 to args.length - 1)
+              .filter(i => indexMap.contains(i) && indexMap(i) != -1)
+          )
             transformedArgs(indexMap(index)) = args(index)
           "f0[" + transformedArgs.mkString(", ") + "]"
         }
@@ -361,13 +361,16 @@ case class Equations(val equations: List[String] = List()) {
           )
       }
 
+      val domainsToVariables =
+        variablesToDomains.groupBy(_._2).mapValues(_.keys)
       definitions ++= withSumsExpanded.propagate(
         lhsCall,
         constDomain,
         signature.name,
         simplifiedWcnf,
         multiplier,
-        HashBiMap.create(variablesToDomains)
+        variablesToDomains,
+        domainsToVariables
       )
     }
     definitions
@@ -379,7 +382,8 @@ case class Equations(val equations: List[String] = List()) {
       name: String,
       simplifiedWcnf: WeightedCNF,
       multiplier: String,
-      variablesToDomains: BiMap[String, Domain]
+      variablesToDomains: Map[String, Domain],
+      domainsToVariables: Map[Domain, Iterable[String]]
   ): Equations = if (multiplier == "0") {
     Equations(List(lhsCall.toString + " = 0"))
   } else {
@@ -398,7 +402,7 @@ case class Equations(val equations: List[String] = List()) {
       newEquations = newEquations2.withoutSpaces
       val newF0 = Equations.changeVariableNames(
         newEquations.equations(newEquations.indexOfF0),
-        variablesToDomains,
+        domainsToVariables,
         variablesToDomains2,
         maxVarNumber(newEquations)
       )
@@ -412,12 +416,9 @@ case class Equations(val equations: List[String] = List()) {
         )
     }
 
-    newEquations = newEquations.updateF0(
-      _.replaceAll(
-        variablesToDomains.inverse.get(constDomain),
-        lhsCall.firstConstant
-      )
-    )
+    for (v <- domainsToVariables(constDomain))
+      newEquations =
+        newEquations.updateF0(_.replaceAll(v, lhsCall.firstConstant))
     newEquations.changeFunctionNames(
       multiplier,
       lhsCall.toString,
@@ -440,7 +441,7 @@ object Equations {
     */
   def changeVariableNames(
       equation: String,
-      variablesToDomains: BiMap[String, Domain],
+      domainsToVariables: Map[Domain, Iterable[String]],
       variablesToDomains2: Map[String, Domain],
       initialVarNumber: Int
   ): String = {
@@ -457,8 +458,9 @@ object Equations {
       .toSet
       .diff(freeVars)
     for (freeVar <- freeVars) {
-      val toReplace =
-        variablesToDomains.inverse.get(variablesToDomains2(freeVar))
+      val toReplaceList = domainsToVariables(variablesToDomains2(freeVar))
+      assert(toReplaceList.size == 1)
+      val toReplace = toReplaceList.head
       if (toReplace != freeVar) {
         // check if there is a collision and handle it
         if (f0BoundedVars.contains(toReplace)) {

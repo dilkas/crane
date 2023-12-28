@@ -46,7 +46,8 @@ public:
   }
 
   virtual void MaxDecrementPerVariable(std::stack<Expression const *> &,
-                                       std::map<std::string, int> &) const {}
+                                       std::map<std::string, int> &,
+                                       std::string) const {}
   virtual void ShuntingYard(std::stack<std::unique_ptr<Token>> &, Expression *,
                             bool) const;
 
@@ -128,7 +129,7 @@ public:
   std::string GetVariable() const override { return value_; }
 
   std::string
-  ToString(std::function<std::string(const Token &)>) const override;
+      ToString(std::function<std::string(const Token &)>) const override;
 
 private:
   std::string value_;

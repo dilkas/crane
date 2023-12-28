@@ -1,7 +1,6 @@
 #include "function_call.h"
 
 #include <cassert>
-#include <iostream>
 #include <sstream>
 
 #include "expression.h"
@@ -142,7 +141,7 @@ InequalityFunctionCall::ToCppString(std::vector<std::string> free_vars) const {
 
 void FunctionCall::MaxDecrementPerVariable(
     std::stack<Expression const *> &arg_stack,
-    std::map<std::string, int> &max_sub) const {
+    std::map<std::string, int> &max_sub, std::string function_name) const {
   for (auto const &arg : func_args)
     arg_stack.push(arg.get());
 }
@@ -209,7 +208,9 @@ FunctionCall *RealFunctionCall::CloneFunctionCall() const {
 
 void RealFunctionCall::MaxDecrementPerVariable(
     std::stack<Expression const *> &arg_stack,
-    std::map<std::string, int> &max_sub) const {
+    std::map<std::string, int> &max_sub, std::string function_name) const {
+  if (func_name != function_name)
+    return;
   for (auto const &arg : func_args) {
     std::string var_name = arg->FirstVariable();
     if (max_sub.find(var_name) == max_sub.end())

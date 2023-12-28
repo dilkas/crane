@@ -51,7 +51,7 @@ public:
   std::unique_ptr<Expression> HandlePower(bool = true);
 
   std::vector<std::pair<std::string, int>>
-  MaxDecrementPerVariable(std::map<std::string, int> max_sub) const;
+  MaxDecrementPerVariable(std::map<std::string, int> &, std::string) const;
 
   /** Transforms an infix expression into postfix notation.
    *

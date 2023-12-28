@@ -94,19 +94,22 @@ std::unique_ptr<Expression> Expression::HandlePower(bool recursive /*= true*/) {
 }
 
 std::vector<std::pair<std::string, int>>
-Expression::MaxDecrementPerVariable(std::map<std::string, int> max_sub) const {
+Expression::MaxDecrementPerVariable(std::map<std::string, int> &max_sub,
+                                    std::string function_name) const {
   std::stack<Expression const *> arg_stack;
   arg_stack.push(this);
   while (!arg_stack.empty()) {
     Expression const *arg_exp = arg_stack.top();
     arg_stack.pop();
     for (auto &e : arg_exp->tokens_)
-      e->MaxDecrementPerVariable(arg_stack, max_sub);
+      e->MaxDecrementPerVariable(arg_stack, max_sub, function_name);
   }
   std::vector<std::pair<std::string, int>> max_sub_vec;
   std::copy(max_sub.begin(), max_sub.end(), std::back_inserter(max_sub_vec));
   return max_sub_vec;
 }
+// TODO (Paulius): this translation to a vector shouldn't be here. Maybe in
+// main.cc, maybe notwhere.
 
 std::unique_ptr<Expression>
 Expression::ShuntingYard(bool recursive /*= true*/) const {
