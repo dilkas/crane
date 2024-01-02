@@ -301,24 +301,33 @@ abstract class IJCAI11Compiler(
   type ChoiceMap = collection.mutable.Map[Clause, Var]
 
   def tryIndependentPartialGrounding(cnf: CNF): InferenceResult = {
-    // in the future, this should be implemented  by finding all binding classes and then checking size and root
-    if (cnf.clauses.exists(_.rootVars.isEmpty)) return List[Result]()
+    /* in the future, this should be implemented by finding all binding classes
+    and then checking size and root */
+    if (cnf.clauses.exists(_.rootVars(cnf.excludedDomains).isEmpty))
+      return List[Result]()
     else {
       // every clause has a root variable -- we can try
       val chosenVariables = collection.mutable.Map.empty[Clause, Var]
       val (unaryClauses, multiClauses) = cnf.clauses.partition {
         _.literalVariables.size == 1
       }
-      // first choose the root variables of unary clauses. they cannot lead to conflicts
+      /* first choose the root variables of unary clauses. They cannot lead to
+      conflicts */
       for (c <- unaryClauses) chosenVariables(c) = c.literalVariables.head
       var chosenClauses = unaryClauses
       // one by one add all variables that are the only roots in their clause
       val (singletonRoots, multiRoots) = multiClauses.partition {
-        _.rootVars.size == 1
+        _.rootVars(cnf.excludedDomains).size == 1
       }
       for (c <- singletonRoots) {
         if (
-          !tryAddingVariable(chosenVariables, chosenClauses, c, c.rootVars.head)
+          !tryAddingVariable(
+            chosenVariables,
+            chosenClauses,
+            c,
+            c.rootVars(cnf.excludedDomains).head,
+            cnf.excludedDomains
+          )
         ) {
           return List[Result]()
         }
@@ -328,11 +337,11 @@ abstract class IJCAI11Compiler(
       val finalChoice = searchChoices(
         chosenVariables,
         chosenClauses,
-        multiRoots.sortBy(_.rootVars.size)
+        multiRoots.sortBy(_.rootVars(cnf.excludedDomains).size),
+        cnf.excludedDomains
       )
       if (finalChoice.isEmpty) return List[Result]()
       else {
-        logger.trace("\nindependent partial grounding")
         val solution = finalChoice.get
         val rootVars = solution.values.toSet
         val rootVarDomains = rootVars.flatMap { rootVar =>
@@ -351,7 +360,8 @@ abstract class IJCAI11Compiler(
           val substitutedClause = clause.substitute(solution(clause), constant)
           substitutedClause
         }
-        val invertedCNF = new CNF(invertedClauses, cnf.excludedDomains)
+        val invertedCNF =
+          new CNF(invertedClauses, cnf.excludedDomains + rootVarDomain)
         val rootVarIneqs = cnf.clauses.flatMap { clause =>
           clause.constrs.ineqConstrs(solution(clause)).collect {
             case c: Constant => c
@@ -372,6 +382,7 @@ abstract class IJCAI11Compiler(
           rootVarDomain,
           msg
         )
+        logger.trace("\nIndependent partial grounding")
         logger.trace(cnf.toString + "\n")
         List((Some(inversionNode), List(invertedCNF)))
       }
@@ -383,15 +394,24 @@ abstract class IJCAI11Compiler(
   private[this] def searchChoices(
       choices: ChoiceMap,
       chosenClauses: List[Clause],
-      otherClauses: List[Clause]
+      otherClauses: List[Clause],
+      excludedDomains: Set[Domain]
   ): Option[ChoiceMap] = {
     if (otherClauses.isEmpty) Some(choices)
     else {
       val clause :: tailClauses = otherClauses
-      val roots = clause.rootVars
+      val roots = clause.rootVars(excludedDomains)
       for (root <- roots) {
         val newChoices = choices.clone
-        if (tryAddingVariable(newChoices, chosenClauses, clause, root)) {
+        if (
+          tryAddingVariable(
+            newChoices,
+            chosenClauses,
+            clause,
+            root,
+            excludedDomains
+          )
+        ) {
           // now also assign variables from clauses that depend on the just assigned clause (requires no search)
           val (dependentClauses, independentClauses) =
             tailClauses.partition(_ dependent clause)
@@ -400,13 +420,15 @@ abstract class IJCAI11Compiler(
             clause,
             root,
             clause :: chosenClauses,
-            dependentClauses
+            dependentClauses,
+            excludedDomains
           )
           if (newChosenClausesOption.nonEmpty) {
             val completeChoices = searchChoices(
               newChoices,
               newChosenClausesOption.get,
-              independentClauses
+              independentClauses,
+              excludedDomains
             )
             if (completeChoices.nonEmpty) return completeChoices
           } // else try next root
@@ -421,7 +443,8 @@ abstract class IJCAI11Compiler(
       clause: Clause,
       root: Var,
       chosenClauses: List[Clause],
-      dependentClauses: List[Clause]
+      dependentClauses: List[Clause],
+      excludedDomains: Set[Domain]
   ): Option[List[Clause]] = {
     var newChosenClauses = chosenClauses
     for (depClause <- dependentClauses) {
@@ -432,8 +455,16 @@ abstract class IJCAI11Compiler(
       )
       if (bindingVariable.size != 1) return None
       val newRoot = bindingVariable.head
-      if (!depClause.rootVars(newRoot)) return None
-      if (!tryAddingVariable(choices, newChosenClauses, depClause, newRoot))
+      if (!depClause.rootVars(excludedDomains)(newRoot)) return None
+      if (
+        !tryAddingVariable(
+          choices,
+          newChosenClauses,
+          depClause,
+          newRoot,
+          excludedDomains
+        )
+      )
         return None
       newChosenClauses = depClause :: newChosenClauses
     }
@@ -444,9 +475,10 @@ abstract class IJCAI11Compiler(
       choices: ChoiceMap,
       chosenClauses: List[Clause],
       clause: Clause,
-      v: Var
+      v: Var,
+      excludedDomains: Set[Domain]
   ): Boolean = {
-    require(clause.rootVars(v))
+    require(clause.rootVars(excludedDomains)(v))
     require(!choices.contains(clause))
     // check if v appears in two incompatible positions in clause
     // for example: friends(x,y) => friends(y,x), x != y.

@@ -38,7 +38,7 @@ abstract class MyCompiler(
     nnfCache: Compiler.Buckets = new Compiler.Buckets
 ) extends V1_1Compiler(sizeHint, nnfCache) {
 
-  def tryImprovedDomainRecursion(cnf: CNF) =
+  def tryGeneralisedDomainRecursion(cnf: CNF) =
     cnf.domainsWithVariablesInLiterals.map { domain =>
       {
         val constant = groundingConstantFor(cnf, domain)
@@ -191,7 +191,7 @@ abstract class MyCompiler(
       tryShatter, // 0
       tryIndependentPartialGrounding, // 0
       tryAtomCounting, // 0
-      tryImprovedDomainRecursion // 0, new
+      tryGeneralisedDomainRecursion // 0, new
     )
 
 }

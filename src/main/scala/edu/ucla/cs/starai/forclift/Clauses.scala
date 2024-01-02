@@ -66,9 +66,12 @@ class Clause(
 
   lazy val predicates = atoms.map { _.predicate }.toSet
 
-  lazy val rootVars = atoms.foldLeft(literalVariables) {
-    _ intersect _.variables
-  }
+  def rootVars(excludedDomains: Set[Domain]) =
+    atoms.foldLeft(literalVariables) {
+      _ intersect _.variables.filterNot {
+        excludedDomains contains constrs.domainFor(_)
+      }
+    }
 
   // ========================= VARIABLES ======================================
 
