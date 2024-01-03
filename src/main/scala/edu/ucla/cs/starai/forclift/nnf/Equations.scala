@@ -351,7 +351,7 @@ case class Equations(val equations: List[String] = List()) {
       val constDomain = variablesToDomains(
         signature.args(firstDifference).terms(0)._2
       )
-      val newWcnf = wcnf.copy(cnf = new CNF(nameToFormula(lhsCall.name)))
+      val newWcnf = wcnf.updateFormula(new CNF(nameToFormula(lhsCall.name)))
       val (simplifiedWcnf, multiplier) = lhsCall.firstConstant.toInt match {
         case 0 => Equations.processZeroConstant(newWcnf, constDomain)
         case 1 => Equations.processOneConstant(newWcnf, constDomain)
@@ -643,7 +643,7 @@ object Equations {
       }
     }
     (
-      wcnf.copy(cnf = new CNF(simplifiedClauses.toList)),
+      wcnf.updateFormula(new CNF(simplifiedClauses.toList)),
       if (containsNullConst) "0" else "1"
     )
   }
@@ -688,7 +688,7 @@ object Equations {
           )
         newClause.substitute((v: Var) => if (vars.contains(v)) newConst else v)
       }
-      (wcnf.copy(cnf = new CNF(newClauses)), "1")
+      (wcnf.updateFormula(new CNF(newClauses)), "1")
     }
   }
 

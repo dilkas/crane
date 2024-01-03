@@ -120,6 +120,10 @@ class PredicateWeights(val self: Map[Predicate, Weights] = Map.empty)
     new PredicateWeights(self - p)
   }
 
+  def project(predicates: Set[Predicate]): PredicateWeights = {
+    new PredicateWeights(self.filterKeys(predicates.contains(_)))
+  }
+
   def update(p: Predicate, w: Weights) = {
     new PredicateWeights(self + (p -> w))
   }

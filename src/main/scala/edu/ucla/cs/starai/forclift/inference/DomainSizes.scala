@@ -238,8 +238,6 @@ class DomainSizes(
     * to domainMap.
     */
   def shrink(domainMap: Map[Domain, Domain]): DomainSizes = {
-    // println("DomainMap:")
-    // println(domainMap)
     val newDomainSizes = map {
       case (domain, _) => {
         val newDomain = domainMap.getOrElse(domain, domain)

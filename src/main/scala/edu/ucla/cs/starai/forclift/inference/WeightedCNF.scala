@@ -74,6 +74,16 @@ case class WeightedCNF(
     )
   }
 
+  def updateFormula(cnf: CNF) = {
+    WeightedCNF(
+      cnf,
+      domainSizes.project(cnf.domains),
+      predicateWeights.project(cnf.predicates),
+      conditionedAtoms,
+      compilerBuilder
+    )
+  }
+
   def vocabularyPredicates = cnf.predicates union predicateWeights.predicates
 
   lazy val wmcVisitor = WmcVisitor(predicateWeights)
@@ -106,12 +116,9 @@ case class WeightedCNF(
     )
   }.flatten
 
-  // TODO (Paulius): must use smooth NNFs in the future (but then in
-  // Equations.scala I must take care of updating predicate weights when using
-  // wcnf.copy)
   lazy val asEquations: (Equations, Map[String, Domain]) = {
     var variablesToDomains = Map[String, Domain]()
-    val equations = nnfs.map { nnf =>
+    val equations = smoothNnfs.map { nnf =>
       val functionIntroductionFinder = new FunctionIntroductionFinder
       functionIntroductionFinder.visit(nnf)
       val (recursions, functionNameToFormula, v2d) = MainOutputVisitor(
