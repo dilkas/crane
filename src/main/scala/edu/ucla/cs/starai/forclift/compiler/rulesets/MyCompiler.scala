@@ -179,16 +179,15 @@ abstract class MyCompiler(
       tryPositiveUnitPropagation,
       tryNegativeUnitPropagation,
       tryConstraintRemoval, // new
-      tryIndependentSubtheories, // +1
-      tryIndependentSubtheoriesAfterShattering
+      tryIndependentSubtheories // +1
     )
 
   override def nonGreedyRules: List[InferenceRule] =
     List(
       tryCache, // revamped
-      tryGroundDecomposition, // +1
-      tryInclusionExclusion, // +2
       tryShatter, // 0
+      tryShannonDecomposition, // +1
+      tryInclusionExclusion, // +2
       tryIndependentPartialGrounding, // 0
       tryAtomCounting, // 0
       tryGeneralisedDomainRecursion // 0, new

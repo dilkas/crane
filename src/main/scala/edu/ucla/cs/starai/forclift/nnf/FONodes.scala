@@ -100,7 +100,6 @@ class IndependentPartialGroundingNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: IndependentPartialGroundingNode")
       val (nl, el) = child.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -185,18 +184,6 @@ class CountingNode(
 
   def size = child.get.size + 1
 
-  // ========================= EQUALITY =======================================
-
-  // override lazy val hashCode: Int = cnf.hashCode
-
-  // def canEqual(a: Any) = a.isInstanceOf[CountingNode]
-
-  // override def equals(that: Any): Boolean =
-  //   that match {
-  //     case that: CountingNode => cnf == that.cnf
-  //     case _                  => false
-  //   }
-
   // ========================= EVERYTHING ELSE ================================
 
   override def update(children: List[Option[NNFNode]]) = {
@@ -260,7 +247,6 @@ class CountingNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: CountingNode")
       val (nl, el) = child.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -303,8 +289,6 @@ class CountingNode(
       getName(
         nameSpace
       ) + " = count " + subdomain + " from " + domain)
-  // + " " + child.get.getName(nameSpace) + "\n" + "\n"
-  // + child.get.toString(nameSpace))
 
 }
 
@@ -395,7 +379,6 @@ class DomainRecursionNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: DomainRecursionNode")
       val (n1, e1) = mixedChild.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -556,7 +539,6 @@ class ImprovedDomainRecursionNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: ImprovedDomainRecursionNode")
       val (n1, e1) = mixedChild.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -615,7 +597,5 @@ class ImprovedDomainRecursionNode(
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) + getName(nameSpace) + " = domainrec " + c +
       " from " + domain)
-  // + " " + mixedChild.get.getName(nameSpace) + "\n" + "\n" +
-  // mixedChild.get.toString(nameSpace))
 
 }

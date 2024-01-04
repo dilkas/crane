@@ -155,12 +155,7 @@ abstract class AbstractCompiler(
     nnfCache.map {
       case (key, value) => {
         val newValue = value.map {
-          case (formula, node) => {
-            // println("Does cloningCache of size " + NNFNode.cloningCache.size +
-            //           " contain the " + node.getClass.getSimpleName + " " +
-            //           node.hashCode + ": " + NNFNode.cloningCache.contains(node))
-            (formula, NNFNode.cloningCache(node))
-          }
+          case (formula, node) => (formula, NNFNode.cloningCache(node))
         }
         (key, newValue)
       }
@@ -169,16 +164,7 @@ abstract class AbstractCompiler(
   /** Put the (cnf, nnf) pair in nnfCache. */
   def updateCache(cnf: CNF, nnf: NNFNode): Unit = {
     assume(nnf != null)
-
-    // println("updateCache: trying to add " + nnf.getClass.getSimpleName + " " +
-    //           nnf.hashCode)
-    // println("updateCache: hash code already exists: " +
-    //           nnfCache.contains(cnf.hashCode))
-    // println("updateCache: a cache entry for the same node exists: " +
-    //           (nnfCache.contains(cnf.hashCode) && nnfCache(cnf.hashCode).exists
-    //              { case (_, node) => node == nnf }))
-
-    if (
+    if (cnf.isSuitableForRecursion &&
       !nnf.isInstanceOf[Ref] && (
         !nnfCache.contains(cnf.hashCode) || !nnfCache(cnf.hashCode).exists {
           case (_, node) => node == nnf
@@ -198,22 +184,12 @@ abstract class AbstractCompiler(
     * even moderate size formulas.
     */
   def tryCache(cnf: CNF): InferenceResult = {
-    // println("tryCache started for formula:")
-    // println(cnf)
     if (!nnfCache.contains(cnf.hashCode)) {
-      // println("tryCache: not found")
       List[Result]()
     } else {
-      // println("tryCache: found. The bucket has " + nnfCache(cnf.hashCode).size +
-      //           " elements.")
       nnfCache(cnf.hashCode).toStream
         .map {
           case (formula, circuit) => {
-            // println("tryCache: formula:")
-            // println(formula)
-            // println("tryCache: the other formula:")
-            // println(circuit.cnf)
-
             CNF.identifyRecursion(cnf, formula) match {
               case Some(recursion) => Some((circuit, recursion))
               case None            => None
@@ -231,14 +207,12 @@ abstract class AbstractCompiler(
           logger.trace(results._2 + "\n")
 
           val node = new Ref(cnf, Some(results._1), results._2, "Cache hit.")
-          // don't cache the Ref node because the node targeted by this Ref
-          // will do
-          // updateCache(cnf, node)
-          // println("tryCache finished")
+          /* don't cache the Ref node because the node targeted by this Ref
+           * will do
+           */
           List((Some(node), List[CNF]()))
         }
         case None => {
-          // println("tryCache finished")
           List[Result]()
         }
       }
@@ -304,10 +278,6 @@ abstract class AbstractCompiler(
                 return applyGreedyRules(successors.head)
               }
               case Some(nnf) => {
-                // println("applyGreedyRules: adding")
-                // println(cnf)
-                // println("AND")
-                // println(nnf.cnf)
                 updateCache(cnf, nnf)
                 val newSuccessors =
                   applyGreedyRulesToAllFormulas(nnf, successors)

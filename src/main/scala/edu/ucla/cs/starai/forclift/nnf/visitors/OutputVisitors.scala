@@ -214,6 +214,11 @@ class LatexOutputVisitor(
     )
   }
 
+  protected def visitShatterNode(
+      node: ShatterNode,
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = visit(node.child.get, params)
+
   // ========================= SINK NODES =====================================
 
   /** Output [c <= variableNames(d) < c + v], where d is the unique domain, c is
@@ -519,12 +524,17 @@ class MainOutputVisitor(
     val (variableNames, predicateWeights) = params
     (
       functionNames(ref.nnfNode.get) + "[" + ref.nnfNode.get.orderedDomains
-        .map { ref.domainMap(_) }
+        .map { d => ref.domainMap.getOrElse(d, d) }
         .map { variableNames(_) }
         .mkString(", ") + "]",
       Nil
     )
   }
+
+  protected def visitShatterNode(
+      node: ShatterNode,
+      params: (Map[Domain, String], PredicateWeights)
+  ): (String, List[String]) = visit(node.child.get, params)
 
   // ========================= SINK NODES =====================================
 

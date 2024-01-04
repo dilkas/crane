@@ -118,6 +118,7 @@ abstract class NNFNode(
     */
   def directSuccessors: List[Option[NNFNode]] = List[Option[NNFNode]]()
 
+  // TODO (Paulius): can I make it part of the constructor?
   def domains: Set[Domain]
 
   def evalOrder: Int
@@ -156,7 +157,7 @@ abstract class NNFNode(
 
   def getName(nameSpace: NameSpace[NNFNode, String]) = nameSpace.getName(this)
 
-  val fontsize = "" //"\tiny"
+  val fontsize = ""
 
   // ========================= CLONING ========================================
 
@@ -173,23 +174,11 @@ abstract class NNFNode(
     */
   private def myClone2(): NNFNode =
     if (NNFNode.cloningCache.contains(this)) {
-      // println("myClone: found " + getClass.getSimpleName + " in the cache")
       NNFNode.cloningCache(this)
     } else {
       val newNode: NNFNode = simpleClone()
       NNFNode.cloningCache(this) = newNode
-
-      // println("myClone: constructing a copy of " + getClass.getSimpleName +
-      //           " " + hashCode + ": " + newNode.hashCode)
-      // if (isInstanceOf[ConstraintRemovalNode]) {
-      //   println("\n" + asInstanceOf[ConstraintRemovalNode] + "\n")
-      // }
-      // println("myClone: there are " + directSuccessors.size +
-      //           " direct successors")
-
       newNode.update(directSuccessors.map(_.map(n => n.myClone2())))
-      // println("myClone: finished the construction of " +
-      //           getClass.getSimpleName + " " + hashCode)
       newNode
     }
 
@@ -217,11 +206,6 @@ abstract class NNFNode(
     val missing = allVars.flatMap {
       _.minus(variablesForSmoothing union excluded)
     }
-    // println("smoothWithPredicates: allVars: " + allVars)
-    // println("smoothWithPredicates: variablesForSmoothing: " + variablesForSmoothing)
-    // println("smoothWithPredicates: missing: " + missing.toList)
-    // println("smoothWithPredicates: after makeDisjoint: " +
-    //           makeDisjoint(missing.toList))
     thisSmoothed.smoothWith(makeDisjoint(missing.toList).toSet)
   }
 
@@ -231,7 +215,6 @@ abstract class NNFNode(
       assume(atoms.forall { atom1 =>
         atoms.forall { atom2 => (atom1 eq atom2) || atom1.independent(atom2) }
       })
-      // println("Adding a smoothing node for clause: " + clause)
       new And(
         branch.cnf,
         Some(new SmoothingNode(clause)),

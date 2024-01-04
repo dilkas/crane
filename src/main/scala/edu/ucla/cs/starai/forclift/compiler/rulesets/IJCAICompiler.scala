@@ -47,8 +47,10 @@ abstract class IJCAI11Compiler(
   }
 
   def tryPositiveUnitClause(cnf: CNF) = {
-    // only compile if the clause is unconditional
-    // otherwise do shannon decomposition to separate the conditions from the literals, to help with smoothing
+    /* Only compile if the clause is unconditional. Otherwise do Shannon
+     * decomposition to separate the conditions from the literals, to help with
+     * smoothing.
+     */
     val isPositiveUnit =
       cnf.isSingleton && cnf.clauses.head.isPositiveUnitClause && cnf.clauses.head.isUnconditional
     if (isPositiveUnit) {
@@ -140,13 +142,6 @@ abstract class IJCAI11Compiler(
   }
 
   def tryIndependentSubtheories(cnf: CNF): InferenceResult = {
-    tryIndependentSubtheories(cnf, false)
-  }
-
-  def tryIndependentSubtheories(
-      cnf: CNF,
-      afterShattering: Boolean
-  ): InferenceResult = {
     def partition(
         depClauses: List[Clause],
         indepClauses: List[Clause]
@@ -165,39 +160,19 @@ abstract class IJCAI11Compiler(
     val (dep, indep) = partition(List(cnf.clauses.head), cnf.clauses.tail)
     if (indep.isEmpty) List[Result]()
     else {
-      val msg =
-        if (!afterShattering) "Independence."
-        else "Independence after shattering."
+      val msg = "Independence."
       val node = new And(cnf, None, None, msg)
+      val child1 = new CNF(dep, cnf.excludedDomains)
+      val child2 = new CNF(indep, cnf.excludedDomains)
 
       logger.trace("\n" + msg + " Before:")
       logger.trace(cnf.toString)
       logger.trace("After 1:")
-      logger.trace(new CNF(dep, cnf.excludedDomains).toString)
+      logger.trace(child1.toString)
       logger.trace("After 2:")
-      logger.trace(new CNF(indep, cnf.excludedDomains) + "\n")
+      logger.trace(child2 + "\n")
 
-      List(
-        (
-          Some(node),
-          List(
-            new CNF(dep, cnf.excludedDomains),
-            new CNF(indep, cnf.excludedDomains)
-          )
-        )
-      )
-    }
-  }
-
-  /** Same as tryIndependentSubtheories but try shattering before.
-    */
-  def tryIndependentSubtheoriesAfterShattering(cnf: CNF): InferenceResult = {
-    val shatteredCnf = shatter(cnf)
-    if (cnf eq shatteredCnf) List[Result]()
-    else {
-      logger.trace("\nindependent subtheories after shattering")
-      logger.trace(cnf.toString + "\n")
-      tryIndependentSubtheories(shatteredCnf, true)
+      List((Some(node), List(child1, child2)))
     }
   }
 
@@ -209,20 +184,8 @@ abstract class IJCAI11Compiler(
     else List[Result]()
   }
 
-  def tryGroundDecomposition(cnf: CNF): InferenceResult = {
-    tryGroundDecomposition(cnf, false)
-  }
-
-  def tryGroundDecompositionCountShattered(cnf: CNF): InferenceResult = {
-    tryGroundDecomposition(cnf, true)
-  }
-
-  def tryGroundDecomposition(
-      cnf: CNF,
-      countShatteredLiterals: Boolean
-  ): InferenceResult = {
-    val countingCnf = if (countShatteredLiterals) shatter(cnf) else cnf
-    val groundLiterals = countingCnf.clauses.flatMap { _.groundLiterals }
+  def tryShannonDecomposition(cnf: CNF): InferenceResult = {
+    val groundLiterals = cnf.clauses.flatMap { _.groundLiterals }
     if (groundLiterals.nonEmpty) {
       val groupedAtoms = groundLiterals.groupBy(a => a)
       val atomCounts = groupedAtoms.mapValues(list => list.size)
@@ -275,7 +238,13 @@ abstract class IJCAI11Compiler(
   def tryShatter(cnf: CNF) = {
     val shatteredCnf = shatter(cnf)
     if (shatteredCnf eq cnf) List[Result]()
-    else List((None, List(shatteredCnf)))
+    else {
+      logger.trace("\nShattering. Before:")
+      logger.trace(cnf.toString)
+      logger.trace("After:")
+      logger.trace(shatteredCnf + "\n")
+      List((Some(new ShatterNode(cnf, None)), List(shatteredCnf)))
+    }
   }
 
   case class IndexedConstant(val i: Int) {
@@ -600,8 +569,7 @@ abstract class IJCAI11Compiler(
 
   def nonGreedyRules: List[InferenceRule] = List(
     tryIndependentSubtheories,
-    tryIndependentSubtheoriesAfterShattering,
-    tryGroundDecomposition,
+    tryShannonDecomposition,
     tryInclusionExclusion,
     tryShatter,
     tryIndependentPartialGrounding,

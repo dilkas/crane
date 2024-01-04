@@ -47,6 +47,18 @@ class DomainsVisitor(val nodes: ListBuffer[NNFNode])
 
   // ========================= NON-SINK NODES =================================
 
+  // TODO (Paulius): reorder the methods (for other Visitors as well)
+
+  protected def visitShatterNode(
+      node: ShatterNode,
+      u: Unit
+  ): Boolean = {
+    val newDomains = node.child.get.domains
+    val returnValue = node.domains != newDomains
+    node.domains = newDomains
+    returnValue
+  }
+
   protected def visitDomainRecursion(
       dr: DomainRecursionNode,
       u: Unit

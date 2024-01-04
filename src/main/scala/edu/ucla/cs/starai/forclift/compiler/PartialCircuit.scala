@@ -79,7 +79,6 @@ class PartialCircuit(
     *         application of one non-greedy rule and any number of greedy rules.
     */
   private def applyAllRules(): Stream[PartialCircuit] = {
-    // println("applyAllRules: started")
     val cnf = formulas.head
     Compiler.checkCnfInput(cnf)
     var circuitCopy = myClone()
@@ -100,8 +99,6 @@ class PartialCircuit(
                 ).applyAllRules().toList
               }
               case Some(node) => {
-                // println("Node " + node.getClass.getSimpleName + " has " +
-                //           successors.size + " successors")
                 circuitCopy.compiler.updateCache(cnf, node)
                 val newSuccessors = circuitCopy.compiler
                   .applyGreedyRulesToAllFormulas(node, successors)
@@ -114,7 +111,6 @@ class PartialCircuit(
         }
       }
     }
-    // println("applyAllRules: finished")
     circuits
   }
 

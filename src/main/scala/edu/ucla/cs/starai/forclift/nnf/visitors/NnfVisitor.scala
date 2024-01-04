@@ -31,6 +31,7 @@ abstract class NnfVisitor[I, O] {
     if (WmcVisitor.latch.getCount() == 0) {
       throw new InterruptedException
     } else {
+      // TODO (Paulius): reorder the cases
       node match {
         // Leaf Nodes
         case leaf: UnitLeaf          => visitUnitLeaf(leaf, input)
@@ -46,6 +47,7 @@ abstract class NnfVisitor[I, O] {
         case ref: Ref                  => visitRefNode(ref, input)
         case ie: InclusionExclusion    => visitInclusionExclusionNode(ie, input)
         case cr: ConstraintRemovalNode => visitConstraintRemovalNode(cr, input)
+        case node: ShatterNode         => visitShatterNode(node, input)
 
         // First-Order Nodes
         case forall: IndependentPartialGroundingNode =>
@@ -83,5 +85,6 @@ abstract class NnfVisitor[I, O] {
   protected def visitSmoothingNode(leaf: SmoothingNode, input: I): O
   protected def visitTrue(input: I): O
   protected def visitUnitLeaf(leaf: UnitLeaf, input: I): O
+  protected def visitShatterNode(node: ShatterNode, input: I): O
 
 }

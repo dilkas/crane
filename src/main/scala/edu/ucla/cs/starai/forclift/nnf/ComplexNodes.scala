@@ -30,6 +30,115 @@ import breeze.math._
 import edu.ucla.cs.starai.forclift.nnf.visitors.SafeSignLogDoubleWmc
 import edu.ucla.cs.starai.forclift.nnf.visitors.WmcVisitor
 
+// TODO (Paulius): reorder the classes and methods within a class
+// TODO (Paulius): a nice description of ShatterNode
+
+/** Needed so that recursive calls can reference the formula after shattering */
+class ShatterNode(
+    val cnf: CNF,
+    var child: Option[NNFNode],
+    val explanation: String = ""
+) extends NNFNode {
+
+  // ========================= ONE-LINERS =====================================
+
+  override def directSuccessors = List(child)
+
+  var domains: Set[Domain] = Set.empty
+
+  lazy val evalOrder = child.get.evalOrder + 1
+
+  def simpleClone(): NNFNode = {
+    val n = new ShatterNode(cnf, None, explanation)
+    n.domains = domains
+    n
+  }
+
+  def size = child.get.size + 1
+
+  // ========================= EVERYTHING ELSE ================================
+
+  override def update(children: List[Option[NNFNode]]) = {
+    require(children.length == 1)
+    child = children.head
+  }
+
+  override def updateFirst(newChild: NNFNode) =
+    if (child.isEmpty) {
+      child = Some(newChild)
+      true
+    } else {
+      false
+    }
+
+  lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
+    NNFNode.smoothingCache(this)
+  } else {
+    val newNode = new ShatterNode(cnf, None, explanation)
+    newNode.domains = domains
+    NNFNode.smoothingCache(this) = newNode
+    newNode.update(List(Some(child.get.smooth)))
+    newNode
+  }
+
+  def condition(pos: Set[Atom], neg: Set[Atom]) = {
+    val returnValue = new ShatterNode(
+      cnf,
+      Some(child.get.condition(pos, neg)),
+      explanation
+    )
+    returnValue.domains = domains
+    NNFNode.conditionCache((this, pos, neg)) = returnValue
+    returnValue
+  }
+
+  override def toDotNode(
+      domainSizes: DomainSizes,
+      predicateWeights: PredicateWeights,
+      nameSpace: NameSpace[NNFNode, String],
+      compact: Boolean = false,
+      depth: Int,
+      maxDepth: Int = Integer.MAX_VALUE
+  ): (String, String) =
+    if (depth >= maxDepth) cutoff(nameSpace, compact)
+    else {
+      val (nl, el) = child.get.toDotNode(
+        domainSizes,
+        predicateWeights,
+        nameSpace,
+        compact,
+        depth + 1,
+        maxDepth
+      )
+      val myNodes = if (compact) {
+        "  " + getName(
+          nameSpace
+        ) + """ [texlbl="""" + fontsize + """ shattering", shape=circle];""" + "\n"
+      } else {
+        "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ + cnf
+          .toLatex() + """"];""" + "\n" + "  shattering" + getName(
+          nameSpace
+        ) + """ [texlbl="""" + fontsize + """ shattering", shape=circle];""" + "\n"
+      }
+      val myEdges = if (compact) {
+        "  " + getName(nameSpace) + " -> " + child.get.getName(nameSpace) +
+          ";\n"
+      } else {
+        "  " + getName(nameSpace) + " -> " + "shatter" + getName(nameSpace) +
+          """ [""" + edgeLabel(explanation) + """];""" + "\n" +
+          "  " + "shatter" + getName(nameSpace) + " -> " +
+          child.get.getName(nameSpace) + ";\n"
+      }
+      val nodes = (myNodes + nl)
+      val edges = (myEdges + el)
+      (nodes, edges)
+    }
+
+  override def toString(nameSpace: NameSpace[NNFNode, String]): String =
+    (super.toString(nameSpace) + getName(nameSpace) + " = shatter")
+
+}
+
 class Ref(
     val cnf: CNF,
     var nnfNode: Option[NNFNode],
@@ -96,7 +205,6 @@ class Ref(
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
     nameSpace.getName(nnfNode.get)
-    // nameSpace.forceName(this, nameSpace.getName(nnfNode.get))
     ("", "")
   }
 
@@ -140,25 +248,6 @@ class ConstraintRemovalNode(
   }
 
   def size = child.get.size + 1
-
-  // ========================= EQUALITY =======================================
-
-  // override lazy val hashCode: Int = cnf.hashCode
-
-  // def canEqual(a: Any) = a.isInstanceOf[ConstraintRemovalNode]
-
-  // override def equals(that: Any): Boolean =
-  //   that match {
-  //     case that: ConstraintRemovalNode => {
-  //       println("ConstraintRemovalNode::equals: comparing")
-  //       println(this)
-  //       println("AND")
-  //       println(that)
-  //       println("ARE THEY EQUAL: " + (cnf == that.cnf))
-  //       cnf == that.cnf
-  //     }
-  //     case _ => false
-  //   }
 
   // ========================= EVERYTHING ELSE ================================
 
@@ -220,7 +309,6 @@ class ConstraintRemovalNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: ConstraintRemovalNode")
       val (nl, el) = child.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -259,8 +347,6 @@ class ConstraintRemovalNode(
       getName(
         nameSpace
       ) + " = reduce " + domain + " to " + subdomain)
-  // + " " + child.get.getName(nameSpace) + "\n" + "\n"
-  // + child.get.toString(nameSpace))
 
 }
 
@@ -332,8 +418,6 @@ class And(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: And for the following formula:")
-      // println(cnf)
       val (nl, el) = l.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -485,7 +569,6 @@ class Or(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: Or")
       val (nl, el) = l.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -662,7 +745,6 @@ class InclusionExclusion(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: InclusionExclusion")
       val (n1, e1) = plus1.get.toDotNode(
         domainSizes,
         predicateWeights,

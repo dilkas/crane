@@ -22,6 +22,8 @@ import scala.collection.immutable.Stream
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
 
+// TODO (Paulius): reorder the methods
+
 /** @param excludedDomains
   *   is used by ImprovedDomainRecursion and AtomCounting to avoid using more
   *   than one such operation on the same domain.
@@ -30,6 +32,9 @@ final case class CNF(
     val clauses: List[Clause],
     val excludedDomains: Set[Domain] = Set.empty
 ) extends SetProxy[Clause] {
+
+  lazy val isSuitableForRecursion: Boolean =
+    domains.forall(d1 => domains.forall(d2 => !d1.subDomain(d2)))
 
   lazy val self = clauses.toSet
 
@@ -372,7 +377,6 @@ object CNF {
     ) {
       None
     } else if (oldFormula.isEmpty && newFormula.isEmpty) {
-      // if (foundConstraintRemoval) Some(partialMap) else None
       Some(partialMap)
     } else {
       for (clause1 <- oldFormula) {

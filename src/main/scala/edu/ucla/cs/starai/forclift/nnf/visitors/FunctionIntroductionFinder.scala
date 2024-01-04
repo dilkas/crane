@@ -23,8 +23,8 @@ import edu.ucla.cs.starai.forclift.nnf._
 
 /** Initialises 'nodes' to be the set of all direct successors of Ref nodes.
   *
-  * Needed by OutputVisitors to know which nodes introduce new functions in
-  * the algebraic description of the FCG.
+  * Needed by OutputVisitors to know which nodes introduce new functions in the
+  * algebraic description of the FCG.
   */
 class FunctionIntroductionFinder extends NnfVisitor[Unit, Unit] {
 
@@ -92,6 +92,10 @@ class FunctionIntroductionFinder extends NnfVisitor[Unit, Unit] {
       visit(node)
     }
   }
+
+  protected def visitShatterNode(node: ShatterNode, u: Unit): Unit = visit(
+    node.child.get
+  )
 
   // ========================= SINK NODES =====================================
 

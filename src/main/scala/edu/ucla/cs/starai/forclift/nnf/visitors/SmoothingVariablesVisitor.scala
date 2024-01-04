@@ -27,13 +27,15 @@ import edu.ucla.cs.starai.forclift.PositiveUnitClause
 /** Updates the 'variablesForSmoothing' field of all nodes in a way that avoids
   * infinite loops caused by cycles in the circuit.
   *
-  * @param nodes all circuit nodes (as returned by PostOrderVisitor)
+  * @param nodes
+  *   all circuit nodes (as returned by PostOrderVisitor)
   *
   * Each visitor method returns 'true' if the 'variablesForSmoothing' field of
   * the input node was updated and 'false' otherwise.
   */
 class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
-    extends NnfVisitor[Unit, Boolean] with LazyLogging {
+    extends NnfVisitor[Unit, Boolean]
+    with LazyLogging {
 
   /** Keeps iterating over all circuit nodes as long as at least one of them
     * updates its 'variablesForSmoothing' field.
@@ -67,13 +69,13 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
   }
 
   protected def visitConstraintRemovalNode(
-    cr: ConstraintRemovalNode,
-    u: Unit
+      cr: ConstraintRemovalNode,
+      u: Unit
   ): Boolean = {
     val countedSubdomainParents =
       NNFNode.removeSubsumed(cr.child.get.variablesForSmoothing.map {
-                               _.reverseDomainSplitting(cr.domain, cr.subdomain)
-                             })
+        _.reverseDomainSplitting(cr.domain, cr.subdomain)
+      })
     val returnValue = cr.variablesForSmoothing != countedSubdomainParents
     cr.variablesForSmoothing = countedSubdomainParents
     logger.trace("constraint removal: " + returnValue)
@@ -238,11 +240,19 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     returnValue
   }
 
+  protected def visitShatterNode(node: ShatterNode, u: Unit): Boolean = {
+    val returnValue =
+      node.variablesForSmoothing != node.child.get.variablesForSmoothing
+    node.variablesForSmoothing = node.child.get.variablesForSmoothing
+    logger.trace("shattering: " + returnValue)
+    returnValue
+  }
+
   // ========================= SINK NODES =====================================
 
   protected def visitContradictionLeaf(
-    leaf: ContradictionLeaf,
-    u: Unit
+      leaf: ContradictionLeaf,
+      u: Unit
   ): Boolean = false
 
   protected def visitFalse(u: Unit): Boolean = false

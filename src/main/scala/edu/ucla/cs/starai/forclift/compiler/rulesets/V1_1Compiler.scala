@@ -46,8 +46,7 @@ abstract class V1_1Compiler(
   override def nonGreedyRules: List[InferenceRule] = List(
     tryTautologyClauseElimination, // added wrt NIPS11
     tryIndependentSubtheories,
-    tryIndependentSubtheoriesAfterShattering,
-    tryGroundDecomposition,
+    tryShannonDecomposition,
     tryInclusionExclusion,
     tryShatter,
     tryIndependentPartialGrounding, // O(log(n))
