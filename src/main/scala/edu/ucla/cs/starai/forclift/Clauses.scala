@@ -145,14 +145,8 @@ class Clause(
   def myEquivalent(that: Any): Boolean =
     that match {
       case that: Clause => {
-        if (hashCode != that.hashCode) {
-          // println("equals: comparing " + this + " and " + that +
-          //           " with different hash codes. Inequality constraints: " +
-          //           constrs.ineqConstrs.size + " and " +
-          //           that.constrs.ineqConstrs.size)
-          false
-        } else {
-
+        if (hashCode != that.hashCode) false
+        else {
           def sameDomains(bijection: Map[Var, Var]): Boolean =
             bijection.forall {
               case (v1, v2) => {
@@ -162,22 +156,16 @@ class Clause(
               }
             }
 
-          // println("equals: comparing " + this + " and " + that)
           val bijections = variableBijections(that, sameDomains)
-          // println("equals: identified " + bijections.size +
-          //           " bijections: " + bijections)
           val answer = bijections.exists { bijection =>
             {
-              // println("equals: checking a bijection")
               substitute(bijection).exactlyEquals(that)
             }
           }
-          // println("equals: " + answer)
           answer
         }
       }
       case _ => {
-        // println("equals: different types")
         false
       }
     }
@@ -187,13 +175,6 @@ class Clause(
   def exactlyEquals(that: Any): Boolean =
     that match {
       case that: Clause => {
-        // println("Clause::exactlyEquals: comparing " + this + " and " + that)
-        // println("Clause::exactlyEquals: posLits: " +
-        //           (posLits.toSet == that.posLits.toSet))
-        // println("Clause::exactlyEquals: negLits: " +
-        //           (negLits.toSet == that.negLits.toSet))
-        // println("Clause::exactlyEquals: constrs: " + (constrs == that.constrs))
-
         posLits.toSet == that.posLits.toSet &&
         negLits.toSet == that.negLits.toSet && constrs == that.constrs
       }
@@ -205,16 +186,6 @@ class Clause(
     */
   override def hashCode: Int =
     (constants, predicates, posLits.size, negLits.size, constrs).hashCode
-  // {
-  //   val prime = 31
-  //   var result = 1
-  //   result = prime * result + posLits.size
-  //   result = prime * result + negLits.size
-  //   result = prime * result + constrs.hashCode
-  //   // println("Clause::hashCode: clause " + this +
-  //   //           " has the following variables: " + constrs.elemConstrs.variables)
-  //   result
-  // }
 
   /** Returns all possible bijections from the variables of this clause to the
     * variables of that clause that satisfy the given condition.
@@ -1142,6 +1113,11 @@ class PositiveUnitClause(
       constrs.substitute(substitution)
     )
   }
+
+  override def substituteDomains(
+      substitution: Domain => Domain
+  ): PositiveUnitClause =
+    new PositiveUnitClause(atom, constrs.substituteDomains(substitution))
 
   def subsumes(other: PositiveUnitClause): Boolean =
     (this.needsShattering(other.atom, other.constrs)

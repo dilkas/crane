@@ -225,18 +225,18 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
   }
 
   protected def visitRefNode(ref: Ref, u: Unit): Boolean = {
-    val returnValue = ref.variablesForSmoothing !=
-      ref.nnfNode.get.variablesForSmoothing
+    val newVars = ref.nnfNode.get.variablesForSmoothing.map {
+      _.substituteDomains(ref.domainMap)
+    }
+    val returnValue = ref.variablesForSmoothing != newVars
 
     logger.trace(
       "ref: " + returnValue + ". before: " + ref.variablesForSmoothing +
-        ", after: " + ref.nnfNode.get.variablesForSmoothing +
-        ". Hash codes equal: " +
-        (ref.variablesForSmoothing.hashCode ==
-          ref.nnfNode.get.variablesForSmoothing.hashCode)
+        ", after: " + newVars + ". Hash codes equal: " +
+        (ref.variablesForSmoothing.hashCode == newVars.hashCode)
     )
 
-    ref.variablesForSmoothing = ref.nnfNode.get.variablesForSmoothing
+    ref.variablesForSmoothing = newVars
     returnValue
   }
 
