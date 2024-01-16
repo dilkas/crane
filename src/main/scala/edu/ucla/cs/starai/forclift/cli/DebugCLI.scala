@@ -36,7 +36,7 @@ import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.nnf.visitors.MainOutputVisitor
 import edu.ucla.cs.starai.forclift.nnf.Equations
-import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluation
+import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluator
 
 /** Handle all debugging logic for CLI
   */
@@ -148,17 +148,17 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
     logger.debug("")
     expandedEquations.foreach { logger.debug(_) }
 
-    NumericalEvaluation.generateCppCode(
-      inputCLI.wcnfModel,
-      expandedEquations.toArray,
-      inputCLI.parser.domains.reverse
-    )
+    val evaluator = new NumericalEvaluator(inputCLI.parser.domains.reverse)
+    val execFilename = evaluator.generateCppCode(expandedEquations)
 
     // Run the C++ program and get the output
     if (numerical) {
       logger.info("Compilation finished. Running the C++ program...")
       val ans: BigInt =
-        NumericalEvaluation.getNumericalAnswer(inputCLI.wcnfModel.domainSizes)
+        evaluator.getNumericalAnswer(
+          execFilename,
+          inputCLI.wcnfModel.domainSizes
+        )
       // Format the BigInt with commas
       val formattedNumber =
         ans.toString().reverse.grouped(3).mkString(",").reverse

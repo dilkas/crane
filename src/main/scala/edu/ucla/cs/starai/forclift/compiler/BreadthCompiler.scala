@@ -41,9 +41,9 @@ class BreadthCompiler(
   private[this] var circuits: List[NNFNode] = List[NNFNode]()
 
   /** Two parameters for the extensiveness of search */
-  lazy val maxDepth: Int = Try(sys.env.get("DEPTH").get.toInt).getOrElse(5)
+  lazy val maxDepth: Int = Try(sys.env.get("DEPTH").get.toInt).getOrElse(-1)
   lazy val numSolutions: Int = Try(sys.env.get("SOLUTIONS").get.toInt).
-    getOrElse(100)
+    getOrElse(1)
 
   private[this] final case class EndSearchException(
       private val message: String = "",
@@ -76,13 +76,13 @@ class BreadthCompiler(
     } else {
       val q = Queue(initialCircuit)
       var depth = 0
-        while (depth <= maxDepth && q.nonEmpty) {
+        while ((maxDepth < 0 || depth <= maxDepth) && q.nonEmpty) {
           println("depth: " + depth)
           val partialCircuit = q.dequeue
           if (partialCircuit.depth > depth) {
             depth = partialCircuit.depth
           }
-          if (depth <= maxDepth)
+          if (maxDepth < 0 || depth <= maxDepth)
             q ++= partialCircuit.nextCircuits(this)
         }
     }

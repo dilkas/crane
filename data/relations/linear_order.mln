@@ -1,8 +1,0 @@
-a = {1,...,3}
-
-r(a, a)
-
-forall x r(x, x).
-forall x forall y r(x, y) v r(y, x).
-forall x forall y (r(x, y) ^ r(y, x)) => x=y.
-forall x forall y forall z (r(x, y) ^ r(y, z)) => r(x, z).

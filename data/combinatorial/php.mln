@@ -1,7 +1,0 @@
-pidgeons = {1,...,3}
-holes = {1,...,3}
-
-p(pidgeons, holes)
-
-forall x exist y p(x, y).
-forall x forall y forall z x=y v !p(x, z) v !p(y, z).

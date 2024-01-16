@@ -1,9 +1,0 @@
-a = {1,...,3}
-
-U(a)
-B(a, a)
-
-U(x) v !U(y) v B(x, y).
-
-forall x exist y !B(x, y).
-!B(x, y) ^ !B(x, z) => y=z.

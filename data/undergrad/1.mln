@@ -1,6 +1,0 @@
-a = {1,...,3}
-b = {1,...,3}
-
-S(a, b)
-
-S(xa, ya) ^ S(xb, yb) => S(xa, yb) v S(xb, ya).

@@ -1,5 +1,0 @@
-person = {1,...,3}
-
-f(person,person)
-
-forall x forall y !f(x, y) v f(y, x).

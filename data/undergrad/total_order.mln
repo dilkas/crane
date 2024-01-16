@@ -1,8 +1,0 @@
-a = {1,...,3}
-
-R(a, a)
-
-R(x, x).
-R(x, y) v R(y, x).
-R(x, y) ^ R(y, x) => x=y.
-R(x, y) ^ R(y, z) => R(x, z).

@@ -1,9 +1,0 @@
-a = {1,...,3}
-b = {1,...,3}
-
-q(a)
-r(a,b)
-s(a,b)
-t(a)
-
-forall x forall m (q(x) v r(x, m) v s(x, m)) ^ (s(x, m) v t(x)).

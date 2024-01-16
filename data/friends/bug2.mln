@@ -1,7 +1,0 @@
-person = {1,...,3}
-
-friends(person,person)
-
-exist b friends(a,b).
-exist d friends(d,c).
-exist e forall f friends(f,e).
