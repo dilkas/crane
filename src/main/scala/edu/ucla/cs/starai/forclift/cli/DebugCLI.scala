@@ -37,6 +37,7 @@ import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.nnf.visitors.MainOutputVisitor
 import edu.ucla.cs.starai.forclift.nnf.Equations
 import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluator
+import edu.ucla.cs.starai.forclift.util.RunWithTimeout
 
 /** Handle all debugging logic for CLI
   */
@@ -82,7 +83,21 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
   )
   def numerical = numericalFlag.value.getOrElse(false)
 
-  def runDebugging(inputCLI: InputCLI) {
+  val timeoutFlag = argumentParser.option[Int](
+    List("t", "timeout"),
+    "integer",
+    "Timeout (in seconds) for compilation and for running the C++ program (separately, default: unlimited)"
+  )
+  def timeout = timeoutFlag.value.getOrElse(-1)
+
+  val maxDomainSizeFlag = argumentParser.option[Int](
+    List("d", "domain-size"),
+    "integer",
+    "-d <n> : The compiled C++ program will run on domain sizes 2^0, 2^1, 2^2,..., 2^n (setting all domain sizes to be equal to the same value)."
+  )
+  def maxDomainSize = maxDomainSizeFlag.value.getOrElse(-1)
+
+  def runDebugging(inputCLI: InputCLI): Unit = {
     // manage verbosity levels
     val context = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
     try {
@@ -142,27 +157,46 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
       }
     }
 
-    // Print the final set of equations (assuming a sufficient verbosity level)
-    val expandedEquations =
-      inputCLI.wcnfModel.asEquations._1.withSumsExpanded.equations
-    logger.debug("")
-    expandedEquations.foreach { logger.debug(_) }
+    def run(): (NumericalEvaluator, String) = {
+      val expandedEquations =
+        inputCLI.wcnfModel.asEquations._1.withSumsExpanded.equations
+      logger.debug("")
+      expandedEquations.foreach { logger.debug(_) }
+      val evaluator = new NumericalEvaluator(inputCLI.parser.domains.reverse)
+      val execFilename = evaluator.generateCppCode(expandedEquations)
+      (evaluator, execFilename)
+    }
 
-    val evaluator = new NumericalEvaluator(inputCLI.parser.domains.reverse)
-    val execFilename = evaluator.generateCppCode(expandedEquations)
-
-    // Run the C++ program and get the output
-    if (numerical) {
-      logger.info("Compilation finished. Running the C++ program...")
-      val ans: BigInt =
-        evaluator.getNumericalAnswer(
-          execFilename,
-          inputCLI.wcnfModel.domainSizes
+    val startTime = System.nanoTime
+    RunWithTimeout(timeout)(run()) match {
+      case None => logger.info("Compilation timed out")
+      case Some((evaluator, execFilename)) => {
+        logger.info(
+          "Compilation time: " + (System.nanoTime - startTime) / 1000000 + " ms"
         )
-      // Format the BigInt with commas
-      val formattedNumber =
-        ans.toString().reverse.grouped(3).mkString(",").reverse
-      logger.info("Model count: " + formattedNumber)
+
+        if (numerical)
+          logger.info(
+            "Model count: " + evaluator.getNumericalAnswer(
+              execFilename,
+              timeout,
+              inputCLI.wcnfModel.domainSizes
+            )
+          )
+
+        if (maxDomainSize > 0) {
+          for (i <- 0 to maxDomainSize) {
+            val n = scala.math.pow(2, i).toInt
+            val count = evaluator.getNumericalAnswer(execFilename, timeout, n)
+            logger.info(
+              "The model count for domain(s) of size " + n + ": " + count
+            )
+            if (count == "TIMEOUT")
+              return
+          }
+        }
+      }
     }
   }
+
 }

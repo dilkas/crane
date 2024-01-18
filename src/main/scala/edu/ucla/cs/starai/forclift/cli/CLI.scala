@@ -45,15 +45,14 @@ object CLI extends App {
   assertFalse()
 
   val argumentParser = new ArgotParser(
-    "wfomc",
+    "Crane",
     false,
     80,
-    Some("Version 1.0"),
+    Some("Version 2.0"),
     Some("""
 EXAMPLE
 
-java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
-java -jar crane.jar -q "smokes(Guy)" ./models/friendsmoker.mln
+java -jar target/scala-2.11/crane-assembly-1.0.jar -n --format-in mln ./models/friendsmoker.mln
 """),
     true
   )

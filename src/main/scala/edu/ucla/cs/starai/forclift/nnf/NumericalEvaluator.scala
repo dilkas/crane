@@ -7,6 +7,7 @@ import scala.collection.mutable.ListBuffer
 import com.typesafe.scalalogging.LazyLogging
 
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
+import edu.ucla.cs.starai.forclift.util.RunWithTimeout
 import edu.ucla.cs.starai.forclift.inference.DomainSizes
 import edu.ucla.cs.starai.forclift.inference.WeightedCNF
 import edu.ucla.cs.starai.forclift.Domain
@@ -47,6 +48,7 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
     logger.debug("\n********** END OF C++ CODE **********\n")
     val cppFilename = writeToTempFile("crane-", ".cpp", out.mkString("\n"))
     val execFilename = cppFilename.take(cppFilename.lastIndexOf('.'))
+    new File(execFilename).deleteOnExit()
     run(
       "Code compilation",
       Seq(CppCompiler) ++ CompileFlags ++ Seq(
@@ -55,21 +57,42 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
         execFilename
       ) ++ LinkFlags
     )
-    logger.info("The compiled C++ program is available as " + execFilename)
     execFilename
   }
 
   /** Runs the compiled C++ code and extracts the numerical answer. */
+  private[this] def getNumericalAnswer(
+      execFilename: String,
+      timeout: Int,
+      arguments: Seq[String]
+  ): String = {
+    val startTime = System.nanoTime
+    def call() = run("Numerical evaluation", execFilename +: arguments)
+    RunWithTimeout(timeout)(call()) match {
+      case Some(out) => {
+        val count =
+          BigInt(out(0)).toString.reverse.grouped(3).mkString(",").reverse
+        count + " (in " + (System.nanoTime - startTime) / 1000000 + " ms)"
+      }
+      case None => "TIMEOUT"
+    }
+  }
+
   def getNumericalAnswer(
       execFilename: String,
+      timeout: Int,
       domainSizes: DomainSizes
-  ): BigInt = {
-    val out = run(
-      "Numerical evaluation",
-      execFilename :: domains.map(domain => domainSizes(domain).size.toString)
-    )
-    BigInt(out(0))
-  }
+  ): String = getNumericalAnswer(
+    execFilename,
+    timeout,
+    domains.map(domain => domainSizes(domain).size.toString)
+  )
+  def getNumericalAnswer(
+      execFilename: String,
+      timeout: Int,
+      domainSize: Int
+  ): String =
+    getNumericalAnswer(execFilename, timeout, Seq(domainSize.toString))
 
   /** Runs the given command and returns its output.
     *

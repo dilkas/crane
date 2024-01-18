@@ -19,6 +19,8 @@ package edu.ucla.cs.starai.forclift.compiler
 import scala.collection.mutable._
 import scala.util.Try
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.inference._
@@ -35,7 +37,7 @@ class BreadthCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
     grounding: Boolean = false,
     skolemize: String = ""
-) extends Compiler {
+) extends Compiler with LazyLogging {
 
   /** Found solutions */
   private[this] var circuits: List[NNFNode] = List[NNFNode]()
@@ -60,7 +62,7 @@ class BreadthCompiler(
 
   override def foundSolution(circuit: NNFNode): Unit = {
     circuits = circuit :: circuits
-    println("FOUND " + circuits.size + " SOLUTION(S)")
+    logger.trace("FOUND " + circuits.size + " SOLUTION(S)")
     if (circuits.size >= numSolutions)
       throw new EndSearchException
   }
@@ -77,7 +79,7 @@ class BreadthCompiler(
       val q = Queue(initialCircuit)
       var depth = 0
         while ((maxDepth < 0 || depth <= maxDepth) && q.nonEmpty) {
-          println("depth: " + depth)
+          logger.trace("depth: " + depth)
           val partialCircuit = q.dequeue
           if (partialCircuit.depth > depth) {
             depth = partialCircuit.depth

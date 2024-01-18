@@ -19,6 +19,7 @@ package edu.ucla.cs.starai.forclift.util
 import java.io.File
 import java.io.FileWriter
 import java.io.FileNotFoundException
+import java.util.concurrent._
 
 import scala.collection.mutable
 import scala.io.BufferedSource
@@ -58,23 +59,42 @@ object XNameSpace extends NameSpace[Any, String] {
 
 }
 
-object Timer{
+object Timer {
 
   def apply[A](f: => A)(output: Long => String): A = {
     val start = System.currentTimeMillis()
     val ret = f
-    println(output(System.currentTimeMillis()-start))
+    println(output(System.currentTimeMillis() - start))
     ret
   }
 
 }
 
-object Output{
+// TODO (Paulius): add a comment: -1 means no timeout. Timeout is in seconds.
+object RunWithTimeout {
 
-  def writeToFile(file: File, content:String, report: String = ""){
+  def apply[A](timeout: Long)(f: => A): Option[A] = if (timeout < 0) {
+    Some(f)
+  } else {
+    val task = new FutureTask(new Callable[A]() {
+      def call() = f
+    })
+    try {
+      new Thread(task).start()
+      Some(task.get(timeout, TimeUnit.SECONDS))
+    } catch {
+      case _: TimeoutException => None
+    }
+  }
+
+}
+
+object Output {
+
+  def writeToFile(file: File, content: String, report: String = "") {
     val out = new FileWriter(file)
     out.write(content)
-    if(report.nonEmpty) println(report);
+    if (report.nonEmpty) println(report);
     out.close
   }
 
@@ -103,10 +123,11 @@ object CacheStats {
   }
 }
 
-object Resource{
+object Resource {
 
   def fromFile(p: String): BufferedSource =
-    Option(getClass.getResourceAsStream(p)).map(scala.io.Source.fromInputStream)
+    Option(getClass.getResourceAsStream(p))
+      .map(scala.io.Source.fromInputStream)
       .getOrElse(throw new FileNotFoundException("Resource " + p))
 
 }
