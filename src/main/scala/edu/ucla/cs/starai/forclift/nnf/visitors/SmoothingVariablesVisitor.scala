@@ -77,8 +77,14 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
         _.reverseDomainSplitting(cr.domain, cr.subdomain)
       })
     val returnValue = cr.variablesForSmoothing != countedSubdomainParents
+
+    logger.trace(
+      "constraint removal: " + returnValue + ". before: " + cr.variablesForSmoothing +
+        ", after: " + countedSubdomainParents + ". Hash codes equal: " +
+        (cr.variablesForSmoothing.hashCode == countedSubdomainParents.hashCode)
+    )
+
     cr.variablesForSmoothing = countedSubdomainParents
-    logger.trace("constraint removal: " + returnValue)
     returnValue
   }
 
@@ -131,37 +137,49 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     returnValue
   }
 
+  // TODO (Paulius): rename mixedChild -> child
   protected def visitImprovedDomainRecursion(
-      idr: ImprovedDomainRecursionNode,
+      node: ImprovedDomainRecursionNode,
       u: Unit
   ): Boolean = {
-    val allVars = idr.mixedChild.get.variablesForSmoothing.map {
-      _.inverseSubstitution(idr.c, idr.ineqs, idr.domain)
-    }
-    val returnValue = idr.variablesForSmoothing != allVars
-
-    if (returnValue) {
-      logger.trace(
-        "visitImprovedDomainRecursion: the child is " +
-          idr.mixedChild.getClass.getSimpleName
-      )
-      logger.trace(
-        "visitImprovedDomainRecursion: before the transformation: " +
-          idr.mixedChild.get.variablesForSmoothing
-      )
-      logger.trace(
-        "visitImprovedDomainRecursion: after the transformation: " +
-          allVars
-      )
-      logger.trace(
-        "visitImprovedDomainRecursion: replacing " +
-          idr.variablesForSmoothing + " with " + allVars
-      )
-    }
-
-    idr.variablesForSmoothing = allVars
+    val returnValue =
+      node.variablesForSmoothing != node.mixedChild.get.variablesForSmoothing
+    node.variablesForSmoothing = node.mixedChild.get.variablesForSmoothing
+    logger.trace("improved domain recursion: " + returnValue)
     returnValue
   }
+
+  // protected def visitImprovedDomainRecursion(
+  //     idr: ImprovedDomainRecursionNode,
+  //     u: Unit
+  // ): Boolean = {
+  //   val allVars = idr.mixedChild.get.variablesForSmoothing.map {
+  //     _.inverseSubstitution(idr.c, idr.ineqs, idr.domain)
+  //   }
+  //   val returnValue = idr.variablesForSmoothing != allVars
+
+  //   if (returnValue) {
+  //     logger.trace(
+  //       "visitImprovedDomainRecursion: the child is " +
+  //         idr.mixedChild.getClass.getSimpleName
+  //     )
+  //     logger.trace(
+  //       "visitImprovedDomainRecursion: before the transformation: " +
+  //         idr.mixedChild.get.variablesForSmoothing
+  //     )
+  //     logger.trace(
+  //       "visitImprovedDomainRecursion: after the transformation: " +
+  //         allVars
+  //     )
+  //     logger.trace(
+  //       "visitImprovedDomainRecursion: replacing " +
+  //         idr.variablesForSmoothing + " with " + allVars
+  //     )
+  //   }
+
+  //   idr.variablesForSmoothing = allVars
+  //   returnValue
+  // }
 
   protected def visitInclusionExclusionNode(
       ie: InclusionExclusion,

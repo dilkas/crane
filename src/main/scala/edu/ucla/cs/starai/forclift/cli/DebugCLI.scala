@@ -97,6 +97,13 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
   )
   def maxDomainSize = maxDomainSizeFlag.value.getOrElse(-1)
 
+  val maxDomainSizeFlag2 = argumentParser.option[Int](
+    List("e"),
+    "integer",
+    "-e <n> : The compiled C++ program will run on domain sizes 1, 2, 3, ..., n (setting all domain sizes to be equal to the same value)."
+  )
+  def maxDomainSize2 = maxDomainSizeFlag2.value.getOrElse(-1)
+
   def runDebugging(inputCLI: InputCLI): Unit = {
     // manage verbosity levels
     val context = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
@@ -187,6 +194,17 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
         if (maxDomainSize > 0) {
           for (i <- 0 to maxDomainSize) {
             val n = scala.math.pow(2, i).toInt
+            val count = evaluator.getNumericalAnswer(execFilename, timeout, n)
+            logger.info(
+              "The model count for domain(s) of size " + n + ": " + count
+            )
+            if (count == "TIMEOUT")
+              return
+          }
+        }
+
+        if (maxDomainSize2 > 0) {
+          for (n <- 1 to maxDomainSize2) {
             val count = evaluator.getNumericalAnswer(execFilename, timeout, n)
             logger.info(
               "The model count for domain(s) of size " + n + ": " + count

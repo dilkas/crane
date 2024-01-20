@@ -71,6 +71,7 @@ object Timer {
 }
 
 // TODO (Paulius): add a comment: -1 means no timeout. Timeout is in seconds.
+// Seems to be inaccurate, at least for running C++ programs.
 object RunWithTimeout {
 
   def apply[A](timeout: Long)(f: => A): Option[A] = if (timeout < 0) {

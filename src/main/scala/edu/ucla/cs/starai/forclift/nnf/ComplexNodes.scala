@@ -265,26 +265,36 @@ class ConstraintRemovalNode(
     }
 
   // Same as in CountingNode
-  def smooth =
-    if (NNFNode.smoothingCache.contains(this)) {
-      NNFNode.smoothingCache(this)
-    } else {
-      val newNode =
-        new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
-      newNode.domains = domains
-      NNFNode.smoothingCache(this) = newNode
-      val countedSubdomainParents =
-        NNFNode.removeSubsumed(child.get.variablesForSmoothing.map {
-          _.reverseDomainSplitting(domain, subdomain)
-        })
-      val disjCounted = makeDisjoint(countedSubdomainParents.toList)
-      val childMissing = disjCounted.flatMap {
-        _.minus(child.get.variablesForSmoothing)
-      }
-      val childSmoothAll = child.get.smooth.smoothWith(childMissing.toSet)
-      newNode.update(List(Some(childSmoothAll)))
-      newNode
-    }
+  // def smooth =
+  //   if (NNFNode.smoothingCache.contains(this)) {
+  //     NNFNode.smoothingCache(this)
+  //   } else {
+  //     val newNode =
+  //       new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+  //     newNode.domains = domains
+  //     NNFNode.smoothingCache(this) = newNode
+  //     val countedSubdomainParents =
+  //       NNFNode.removeSubsumed(child.get.variablesForSmoothing.map {
+  //         _.reverseDomainSplitting(domain, subdomain)
+  //       })
+  //     val disjCounted = makeDisjoint(countedSubdomainParents.toList)
+  //     val childMissing = disjCounted.flatMap {
+  //       _.minus(child.get.variablesForSmoothing)
+  //     }
+  //     val childSmoothAll = child.get.smooth.smoothWith(childMissing.toSet)
+  //     newNode.update(List(Some(childSmoothAll)))
+  //     newNode
+  //   }
+
+  lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
+    NNFNode.smoothingCache(this)
+  } else {
+    val newNode = new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+    newNode.domains = domains
+    NNFNode.smoothingCache(this) = newNode
+    newNode.update(List(Some(child.get.smooth)))
+    newNode
+  }
 
   def condition(pos: Set[Atom], neg: Set[Atom]) = {
     val returnValue = new ConstraintRemovalNode(
