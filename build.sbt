@@ -80,8 +80,7 @@ val dependencies = Seq (
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2",
   "ch.qos.logback" % "logback-classic" % "1.2.10",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.4",
-  "com.lihaoyi" %% "upickle" % "2.0.0",
-  "com.google.guava" % "guava" % "32.1.3-jre"
+  "com.lihaoyi" %% "upickle" % "2.0.0"
 )
 
 lazy val main = (project in file("."))

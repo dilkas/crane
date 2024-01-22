@@ -1,16 +1,15 @@
 package edu.ucla.cs.starai.forclift.nnf
 
-import scala.sys.process._
-import System._
 import java.io._
+import scala.sys.process._
 import scala.collection.mutable.ListBuffer
+
 import com.typesafe.scalalogging.LazyLogging
 
+import edu.ucla.cs.starai.forclift.Domain
+import edu.ucla.cs.starai.forclift.inference.DomainSizes
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
 import edu.ucla.cs.starai.forclift.util.RunWithTimeout
-import edu.ucla.cs.starai.forclift.inference.DomainSizes
-import edu.ucla.cs.starai.forclift.inference.WeightedCNF
-import edu.ucla.cs.starai.forclift.Domain
 
 /** The class responsible for compiling equations into C++ programs as well as
   * compiling and (optionally) running those programs.

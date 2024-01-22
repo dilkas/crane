@@ -19,9 +19,10 @@ package edu.ucla.cs.starai.forclift.util
 import java.io.File
 import java.io.FileWriter
 import java.io.FileNotFoundException
-import java.util.concurrent._
 
 import scala.collection.mutable
+import scala.concurrent._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.BufferedSource
 import scala.language.implicitConversions
 
@@ -71,22 +72,19 @@ object Timer {
 }
 
 // TODO (Paulius): add a comment: -1 means no timeout. Timeout is in seconds.
-// Seems to be inaccurate, at least for running C++ programs.
 object RunWithTimeout {
 
-  def apply[A](timeout: Long)(f: => A): Option[A] = if (timeout < 0) {
-    Some(f)
-  } else {
-    val task = new FutureTask(new Callable[A]() {
-      def call() = f
-    })
-    try {
-      new Thread(task).start()
-      Some(task.get(timeout, TimeUnit.SECONDS))
-    } catch {
-      case _: TimeoutException => None
+  def apply[A](timeout: Long)(block: => A): Option[A] =
+    if (timeout < 0) {
+      Some(block)
+    } else {
+      val f = Future(blocking(block))
+      try {
+        Some(Await.result(f, duration.Duration(timeout, "sec")))
+      } catch {
+        case _: TimeoutException => None
+      }
     }
-  }
 
 }
 

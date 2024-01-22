@@ -17,25 +17,16 @@
 
 package edu.ucla.cs.starai.forclift.cli
 
-import com.typesafe.scalalogging.LazyLogging
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import ch.qos.logback.core.joran.spi.JoranException
 import ch.qos.logback.core.util.StatusPrinter
+import com.typesafe.scalalogging.LazyLogging
 import org.clapper.argot.ArgotConverters._
 import org.clapper.argot.ArgotParser
-import org.clapper.argot.FlagOption
-import org.clapper.argot.SingleValueOption
-import org.clapper.argot.SingleValueParameter
 import org.slf4j.LoggerFactory
-import edu.ucla.cs.starai.forclift.propositional.C2DError
-import edu.ucla.cs.starai.forclift.languages.StatRelModel
-import edu.ucla.cs.starai.forclift.PositiveUnitClause
+
 import edu.ucla.cs.starai.forclift.languages.ModelConverters._
-import edu.ucla.cs.starai.forclift.propositional.DimacsCNF
-import edu.ucla.cs.starai.forclift.inference.WeightedCNF
-import edu.ucla.cs.starai.forclift.nnf.visitors.MainOutputVisitor
-import edu.ucla.cs.starai.forclift.nnf.Equations
 import edu.ucla.cs.starai.forclift.nnf.NumericalEvaluator
 import edu.ucla.cs.starai.forclift.util.RunWithTimeout
 
