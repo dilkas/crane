@@ -434,56 +434,48 @@ object Equations {
     override def toString = "c" + (if (i > 0) ("'" * i) else "")
   }
 
-  /** Changes the variable names to the previous ones.
-    *
-    * Does this only for the free variables, i.e. those occuring as parameters
-    * for the equation containing x0 on the left-hand side.
+  /** Replaces each function parameter x with
+    * domainsToVariables(variablesToDomains2(x)).head
     */
   def changeVariableNames(
-      equation: String,
+      initialEquation: String,
       domainsToVariables: Map[Domain, Iterable[String]],
       variablesToDomains2: Map[String, Domain],
       initialVarNumber: Int
   ): String = {
     var varNumber = initialVarNumber
-    var newValue = equation
-    val indexOfEquals = newValue.indexOf('=')
-    val freeVars = newValue
-      .substring(3, indexOfEquals - 1)
+    var equation = initialEquation
+    val freeVars = equation
+      .substring(3, equation.indexOf('=') - 1)
       .split(',')
       .map(_.replaceAll(" ", ""))
       .toSet
     val f0BoundedVars = ("x[0-9]+".r)
-      .findAllIn(newValue)
+      .findAllIn(equation)
       .toSet
       .diff(freeVars)
     for (freeVar <- freeVars) {
       val toReplaceList = domainsToVariables(variablesToDomains2(freeVar))
       assert(toReplaceList.size == 1)
       val toReplace = toReplaceList.head
-      if (toReplace != freeVar) {
-        // check if there is a collision and handle it
-        if (f0BoundedVars.contains(toReplace)) {
-          // get a new variable name
-          varNumber += 1
-          newValue.replaceAll(toReplace, "x" + varNumber.toString)
-        }
+      // check if there is a collision and handle it
+      if (toReplace != freeVar && f0BoundedVars.contains(toReplace)) {
+        // get a new variable name
+        varNumber += 1
+        equation = equation.replaceAll(toReplace, "x" + varNumber.toString)
       }
-      newValue.replaceAll(freeVar, "y" + toReplace.substring(1))
+      equation = equation.replaceAll(freeVar, "y" + toReplace.substring(1))
     }
-    newValue.replace('y', 'x')
-    newValue
+    equation.replace('y', 'x')
   }
 
   private[this] def findClosingBracket(str: String, i0: Int): Int = {
     var numOpenBrackets = 0
     for (i <- i0 to str.length() - 1) {
-      if (str(i) == '[') {
-        numOpenBrackets += 1
-      } else if (str(i) == ']') {
+      if (str(i) == '[') numOpenBrackets += 1
+      else if (str(i) == ']') {
         numOpenBrackets -= 1
-        if (numOpenBrackets == 0)
-          return i
+        if (numOpenBrackets == 0) return i
       }
     }
     throw new IllegalStateException("No closing bracket found")
@@ -527,8 +519,7 @@ object Equations {
 
     // find the outermost Sum
     val firstSumLoc = eq.indexOf("Sum")
-    if (firstSumLoc == -1)
-      return eq
+    if (firstSumLoc == -1) return eq
     val sumClosingLoc = findClosingBracket(eq, firstSumLoc)
 
     // find the arguments of Sum
@@ -545,9 +536,8 @@ object Equations {
     )
 
     // check if the sum can be expanded
-    if (pwIndex == -1) {
-      eq
-    } else {
+    if (pwIndex == -1) eq
+    else {
       // find the inequality inside the piecewise function
       val ineqArgs = Equations.findArgs(
         ("Inequality\\[[a-zA-Z0-9,]*\\]".r)
@@ -559,11 +549,9 @@ object Equations {
         pwIndex + 1,
         prodTerms.length
       )).mkString("*")
-      if (ineqArgs.length != 5)
-        return eq
+      if (ineqArgs.length != 5) return eq
       // find the inequality constraints on the summation variable
-      if (ineqArgs(2) != iterVar)
-        return eq
+      if (ineqArgs(2) != iterVar) return eq
       val terms =
         determineBounds(ineqArgs).map(i => rest.replaceAll(iterVar, i.toString))
       expandSums(
@@ -599,8 +587,8 @@ object Equations {
       wcnf: WeightedCNF,
       constDomain: Domain
   ): (WeightedCNF, String) = {
-    val simplifiedClauses: ListBuffer[Clause] = ListBuffer()
-    var containsNullConst: Boolean = false
+    val simplifiedClauses = ListBuffer[Clause]()
+    var containsNullConst = false
     for (clause: Clause <- wcnf.cnf.self if !containsNullConst) {
       /* check if the null domain is present in the domain constraints of
        * the clause */
@@ -628,8 +616,7 @@ object Equations {
           }
           if (!containsNullDom && !containsNullConst) {
             newPosList += atom
-            if (newPosList.size == 1)
-              newNegList += atom
+            if (newPosList.size == 1) newNegList += atom
           }
         }
         if (newPosList.size != 0 || newNegList.size != 0)
@@ -654,9 +641,8 @@ object Equations {
   ): (WeightedCNF, String) = {
     val constantsInUnitDomain =
       wcnf.cnf.constants.filter(_.domain == constDomain)
-    if (constantsInUnitDomain.size > 1) {
-      (wcnf, "0")
-    } else {
+    if (constantsInUnitDomain.size > 1) (wcnf, "0")
+    else {
       val existingIndices = wcnf.cnf.constants
         .filter {
           _.value.isInstanceOf[BaseCaseIndexedConstant]
