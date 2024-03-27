@@ -56,8 +56,9 @@ class Clause(
 
   val atoms: List[Atom] = posLits ::: negLits
 
-  lazy val constants: Set[Constant] = atoms.flatMap { _.constants }.toSet ++
-    constrs.constants
+  lazy val constants: Set[Constant] = literalConstants ++ constrs.constants
+
+  lazy val literalConstants: Set[Constant] = atoms.flatMap { _.constants }.toSet
 
   val literalVariables: Set[Var] = atoms.flatMap { _.variables }.toSet
 
@@ -78,6 +79,9 @@ class Clause(
   def allVariables = constrVariables union literalVariables
 
   def constrVariables: Set[Var] = constrs.variables
+
+  def variablesNotEqualTo(constant: Constant): Set[Var] =
+    constrs.variablesNotEqualTo(constant)
 
   def variablesWithDomain(domain: Domain): List[Var] =
     constrs.variablesWithDomain(domain)
@@ -1016,6 +1020,65 @@ class PositiveUnitClause(
   override def hashCode: Int = super.hashCode
 
   // ========================= EVERYTHING ELSE ================================
+  // TODO (Paulius): reorder methods below
+
+  override def addInequality(v: Var, a: Term) =
+    new PositiveUnitClause(atom, constrs.addInequality(v, a))
+
+  private def canMergeWith(
+      other: PositiveUnitClause,
+      constant: Constant
+  ): Boolean =
+    variablesNotEqualTo(constant).foldLeft(removeConstraints(constant)) {
+      (clause, variable) =>
+        clause.substitute(variable, constant)
+    } == other
+
+  private def orientedMerge(
+      other: PositiveUnitClause
+  ): Option[PositiveUnitClause] = {
+    val mergeWithConstant: PartialFunction[Constant, PositiveUnitClause] = {
+      case constant if (canMergeWith(other, constant)) =>
+        removeConstraints(constant).asInstanceOf[PositiveUnitClause]
+    }
+    constrs.constants
+      .diff(literalConstants)
+      .intersect(
+        other.literalConstants.diff(other.constrs.constants)
+      )
+      .collectFirst(mergeWithConstant)
+  }
+
+  def mergeWith(other: PositiveUnitClause): Option[PositiveUnitClause] =
+    (orientedMerge(other), other.orientedMerge(this)) match {
+      case (Some(merged), _) => Some(merged)
+      case (_, Some(merged)) => Some(merged)
+      case _                 => None
+    }
+
+  /** Removes all inequality constraints with the given constant. */
+  override def removeConstraints(constant: Constant): PositiveUnitClause =
+    new PositiveUnitClause(
+      atom,
+      Constraints(
+        IneqConstr(constrs.ineqConstrs.flatMap { case (variable, terms) =>
+          terms.flatMap { term: Term =>
+            if (term != constant)
+              List((variable, term))
+            else List()
+          }
+        }.toList: _*),
+        constrs.elemConstrs
+      )
+    )
+
+  override def substitute(from: Var, to: Term): PositiveUnitClause = {
+    def substitution(v: Var) = if (v == from) to else v
+    new PositiveUnitClause(
+      atom.substitute(substitution),
+      constrs.substitute(substitution)
+    )
+  }
 
   def equivalent(other: PositiveUnitClause) = {
     val equivalent = ((this eq other) || (!this.independent(other) &&

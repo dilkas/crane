@@ -17,19 +17,21 @@
 
 package edu.ucla.cs.starai.forclift.nnf
 
+// TODO (Paulius): do I need this many imports?
+
+import breeze.math._
 import collection._
+import collection.mutable.ListBuffer
+import java.io._
+import scala.sys.process._
+import System._
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
 import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.util.Binomial._
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
-import scala.sys.process._
-import System._
-import collection.mutable.ListBuffer
-import constraints._
-import java.io._
-import breeze.math._
 
 class NNFNameSpace extends NameSpace[NNFNode, String] {
 

@@ -130,10 +130,13 @@ abstract class MyCompiler(
                   cnf,
                   None,
                   originalDomain,
-                  newDomain
+                  newDomain,
+                  constant
                 )
 
-                logger.trace("\nConstraint removal. Before:")
+                logger.trace(
+                  s"\nConstraint removal of $constant from $originalDomain, introducing $newDomain. Before:"
+                )
                 logger.trace(cnf.toString)
                 logger.trace("Constraint removal. After:")
                 logger.trace(newCnf + "\n")
@@ -167,6 +170,8 @@ abstract class MyCompiler(
     }
   }
 
+  // TODO (Paulius): check if the algorithm works without some of the
+  // undocumented auxiliary rules
   override def greedyRules: List[InferenceRule] =
     List(
       tryTautology,
@@ -178,6 +183,7 @@ abstract class MyCompiler(
       tryRemoveDoubleClauses, // revived
       tryPositiveUnitPropagation,
       tryNegativeUnitPropagation,
+      tryShatter, // 0
       tryConstraintRemoval, // new
       tryIndependentSubtheories // +1
     )
@@ -185,7 +191,6 @@ abstract class MyCompiler(
   override def nonGreedyRules: List[InferenceRule] =
     List(
       tryCache, // revamped
-      tryShatter, // 0
       tryShannonDecomposition, // +1
       tryInclusionExclusion, // +2
       tryIndependentPartialGrounding, // 0

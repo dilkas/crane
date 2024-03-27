@@ -96,6 +96,9 @@ final case class Constraints(
 
   lazy val variables = elemConstrs.variables ++ ineqConstrs.variables
 
+  def variablesNotEqualTo(constant: Constant): Set[Var] =
+    ineqConstrs.variablesNotEqualTo(constant)
+
   def variablesWithDomain(domain: Domain): List[Var] =
     elemConstrs.variablesWithDomain(domain)
 

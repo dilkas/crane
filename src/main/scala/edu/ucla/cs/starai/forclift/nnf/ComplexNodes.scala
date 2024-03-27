@@ -139,6 +139,7 @@ class ShatterNode(
 
 }
 
+// TODO (Paulius): reorder methods
 class Ref(
     val cnf: CNF,
     var nnfNode: Option[NNFNode],
@@ -230,6 +231,7 @@ class ConstraintRemovalNode(
     var child: Option[NNFNode],
     val domain: Domain,
     val subdomain: SubDomain,
+    val constant: Constant,
     val explanation: String = ""
 ) extends NNFNode {
 
@@ -242,7 +244,14 @@ class ConstraintRemovalNode(
   lazy val evalOrder = child.get.evalOrder + 1
 
   def simpleClone(): NNFNode = {
-    val n = new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+    val n = new ConstraintRemovalNode(
+      cnf,
+      None,
+      domain,
+      subdomain,
+      constant,
+      explanation
+    )
     n.domains = domains
     n
   }
@@ -264,32 +273,17 @@ class ConstraintRemovalNode(
       false
     }
 
-  // Same as in CountingNode
-  // def smooth =
-  //   if (NNFNode.smoothingCache.contains(this)) {
-  //     NNFNode.smoothingCache(this)
-  //   } else {
-  //     val newNode =
-  //       new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
-  //     newNode.domains = domains
-  //     NNFNode.smoothingCache(this) = newNode
-  //     val countedSubdomainParents =
-  //       NNFNode.removeSubsumed(child.get.variablesForSmoothing.map {
-  //         _.reverseDomainSplitting(domain, subdomain)
-  //       })
-  //     val disjCounted = makeDisjoint(countedSubdomainParents.toList)
-  //     val childMissing = disjCounted.flatMap {
-  //       _.minus(child.get.variablesForSmoothing)
-  //     }
-  //     val childSmoothAll = child.get.smooth.smoothWith(childMissing.toSet)
-  //     newNode.update(List(Some(childSmoothAll)))
-  //     newNode
-  //   }
-
   lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
     NNFNode.smoothingCache(this)
   } else {
-    val newNode = new ConstraintRemovalNode(cnf, None, domain, subdomain, explanation)
+    val newNode = new ConstraintRemovalNode(
+      cnf,
+      None,
+      domain,
+      subdomain,
+      constant,
+      explanation
+    )
     newNode.domains = domains
     NNFNode.smoothingCache(this) = newNode
     newNode.update(List(Some(child.get.smooth)))
@@ -302,6 +296,7 @@ class ConstraintRemovalNode(
       Some(child.get.condition(pos, neg)),
       domain,
       subdomain,
+      constant,
       explanation
     )
     returnValue.domains = domains
@@ -330,13 +325,13 @@ class ConstraintRemovalNode(
       val myNodes = if (compact) {
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ $""" +
           subdomain + """ = """ + domain +
-          """\setminus\{\,\ast\,\}$", shape=circle];""" + "\n"
+          """\setminus\{\,""" + constant + """\,\}$", shape=circle];""" + "\n"
       } else {
         "  " + getName(nameSpace) + """ [texlbl="""" + fontsize + """ """ +
           cnf.toLatex() + """"];""" + "\n" + "  " + "reduce" +
           getName(nameSpace) + """ [texlbl="""" + fontsize + """ $""" +
           subdomain + """ = """ + domain +
-          """\setminus\{\,\ast\,\}$", shape=circle];""" + "\n"
+          """\setminus\{\,""" + constant + """\,\}$", shape=circle];""" + "\n"
       }
       val myEdges = if (compact) {
         "  " + getName(nameSpace) + " -> " + child.get.getName(nameSpace) +

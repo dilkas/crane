@@ -24,6 +24,8 @@ import edu.ucla.cs.starai.forclift._
 import util._
 import util.extracollection._
 
+// TODO (Paulius): organise the methods
+
 final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
     extends MapProxy[Var, Set[Term]] {
 
@@ -71,6 +73,12 @@ final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
       if (clone(v).isEmpty) clone -= v
     }
     new IneqConstr(clone)
+  }
+
+  def variablesNotEqualTo(constant: Constant): Set[Var] = {
+    self.collect {
+      case (v, terms) if terms.contains(constant) => v
+    }.toSet
   }
 
   def conflictsWith(eqClasses: List[EquivalenceClass]): Boolean = {

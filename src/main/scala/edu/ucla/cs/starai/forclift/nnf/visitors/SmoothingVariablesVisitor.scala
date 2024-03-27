@@ -17,12 +17,11 @@
 package edu.ucla.cs.starai.forclift.nnf.visitors
 
 import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.Set
 
 import com.typesafe.scalalogging.LazyLogging
 
-import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.PositiveUnitClause
+import edu.ucla.cs.starai.forclift.nnf._
 
 /** Updates the 'variablesForSmoothing' field of all nodes in a way that avoids
   * infinite loops caused by cycles in the circuit.
@@ -51,10 +50,22 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     logger.trace("Smoothing finished")
   }
 
+  private[this] def combineAtoms(
+      atoms: scala.collection.Set[PositiveUnitClause]
+  ): Set[PositiveUnitClause] =
+    atoms.foldLeft(Set.empty[PositiveUnitClause]) { case (acc, atom) =>
+      acc.view
+        .map { clause => (clause, clause.mergeWith(atom)) }
+        .find(_._2.isDefined) match {
+        case Some((previous, Some(replacement))) => acc - previous + replacement
+        case _                                   => acc + atom
+      }
+    }
+
   // ========================= NON-SINK NODES =================================
 
   protected def visitAndNode(and: And, u: Unit): Boolean = {
-    val thisVars: collection.Set[PositiveUnitClause] =
+    val thisVars =
       and.l.get.variablesForSmoothing union and.r.get.variablesForSmoothing
     val returnValue = and.variablesForSmoothing != thisVars
 
@@ -72,8 +83,16 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
       cr: ConstraintRemovalNode,
       u: Unit
   ): Boolean = {
+    val withConstraints = cr.child.get.variablesForSmoothing.map { c =>
+      {
+        var clause = c
+        for (variable <- clause.variablesWithDomain(cr.subdomain))
+          clause = clause.addInequality(variable, cr.constant)
+        clause
+      }
+    }
     val countedSubdomainParents =
-      NNFNode.removeSubsumed(cr.child.get.variablesForSmoothing.map {
+      NNFNode.removeSubsumed(withConstraints.map {
         _.reverseDomainSplitting(cr.domain, cr.subdomain)
       })
     val returnValue = cr.variablesForSmoothing != countedSubdomainParents
@@ -88,6 +107,7 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     returnValue
   }
 
+  @deprecated("Use visitImprovedDomainRecursion instead", "2")
   protected def visitDomainRecursion(
       dr: DomainRecursionNode,
       u: Unit
@@ -103,6 +123,20 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     val returnValue = dr.variablesForSmoothing != allVars
     dr.variablesForSmoothing = allVars
     logger.trace("domain recursion: " + returnValue)
+    returnValue
+  }
+
+  protected def visitImprovedDomainRecursion(
+      dr: ImprovedDomainRecursionNode,
+      u: Unit
+  ): Boolean = {
+    val thisVars = combineAtoms(dr.mixedChild.get.variablesForSmoothing)
+    val returnValue = dr.variablesForSmoothing != thisVars
+    logger.trace(
+      "domain recursion: " + returnValue + ". before: " +
+        dr.variablesForSmoothing + ", after: " + thisVars
+    )
+    dr.variablesForSmoothing = thisVars
     returnValue
   }
 
@@ -136,50 +170,6 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     logger.trace("forall / independent partial grounding: " + returnValue)
     returnValue
   }
-
-  // TODO (Paulius): rename mixedChild -> child
-  protected def visitImprovedDomainRecursion(
-      node: ImprovedDomainRecursionNode,
-      u: Unit
-  ): Boolean = {
-    val returnValue =
-      node.variablesForSmoothing != node.mixedChild.get.variablesForSmoothing
-    node.variablesForSmoothing = node.mixedChild.get.variablesForSmoothing
-    logger.trace("improved domain recursion: " + returnValue)
-    returnValue
-  }
-
-  // protected def visitImprovedDomainRecursion(
-  //     idr: ImprovedDomainRecursionNode,
-  //     u: Unit
-  // ): Boolean = {
-  //   val allVars = idr.mixedChild.get.variablesForSmoothing.map {
-  //     _.inverseSubstitution(idr.c, idr.ineqs, idr.domain)
-  //   }
-  //   val returnValue = idr.variablesForSmoothing != allVars
-
-  //   if (returnValue) {
-  //     logger.trace(
-  //       "visitImprovedDomainRecursion: the child is " +
-  //         idr.mixedChild.getClass.getSimpleName
-  //     )
-  //     logger.trace(
-  //       "visitImprovedDomainRecursion: before the transformation: " +
-  //         idr.mixedChild.get.variablesForSmoothing
-  //     )
-  //     logger.trace(
-  //       "visitImprovedDomainRecursion: after the transformation: " +
-  //         allVars
-  //     )
-  //     logger.trace(
-  //       "visitImprovedDomainRecursion: replacing " +
-  //         idr.variablesForSmoothing + " with " + allVars
-  //     )
-  //   }
-
-  //   idr.variablesForSmoothing = allVars
-  //   returnValue
-  // }
 
   protected def visitInclusionExclusionNode(
       ie: InclusionExclusion,
@@ -237,7 +227,10 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
     val returnValue = or.variablesForSmoothing != thisVars
     or.variablesForSmoothing = thisVars
 
-    logger.trace("or: " + returnValue)
+    logger.trace(
+      "or: " + returnValue + ". before: " + or.variablesForSmoothing +
+        ", after: " + thisVars
+    )
 
     returnValue
   }
