@@ -36,6 +36,9 @@ final case class Constraints(
 
   // ========================= ONE-LINERS =====================================
 
+  def addDomain(v: Var, d: Domain): Constraints =
+    this.copy(elemConstrs = elemConstrs + (v -> d))
+
   def addInequality(v: Var, a: Term): Constraints = {
     this.copy(ineqConstrs = ineqConstrs.+(v, a))
   }
@@ -112,8 +115,6 @@ final case class Constraints(
   override def equals(that: Any): Boolean =
     that match {
       case that: Constraints =>
-        // elemConstrs.variables.size ==
-        //   that.elemConstrs.variables.size && ineqConstrs == that.ineqConstrs
         elemConstrs == that.elemConstrs && ineqConstrs == that.ineqConstrs
       case _ => false
     }
@@ -238,6 +239,16 @@ final case class Constraints(
     copy(ineqConstrs = newIneqConstrs, elemConstrs = newElemConstrs)
   }
 
+  def removeConstraints(constant: Constant) =
+    this.copy(ineqConstrs = IneqConstr(ineqConstrs.flatMap {
+      case (variable, terms) =>
+        terms.flatMap { term: Term =>
+          if (term != constant)
+            List((variable, term))
+          else List()
+        }
+    }.toList: _*))
+
   def reverseDomainSplitting(
       from: Domain,
       subdomain: SubDomain
@@ -277,10 +288,16 @@ final case class Constraints(
 
   // split because the handling of inequality constraints between variables
   // only works when they have the same domain method critical for performance
-  def hasSolutionAssumingShatteredDomains(variableNames: Map[Domain, String]): String = {
+  def hasSolutionAssumingShatteredDomains(
+      variableNames: Map[Domain, String]
+  ): String = {
     assume(!needsIneqDomainShattering)
     var dims: List[(collection.Set[Constant], Int, Domain)] =
-      domainsWithExclusions.groupBy(_._3).mapValues(l => l.maxBy(_._2)).values.toList
+      domainsWithExclusions
+        .groupBy(_._3)
+        .mapValues(l => l.maxBy(_._2))
+        .values
+        .toList
     var expression: String = ""
     while (dims.nonEmpty) {
       val dim = dims.head

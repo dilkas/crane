@@ -130,7 +130,9 @@ class SmoothingVariablesVisitor(val nodes: ListBuffer[NNFNode])
       dr: ImprovedDomainRecursionNode,
       u: Unit
   ): Boolean = {
-    val thisVars = combineAtoms(dr.mixedChild.get.variablesForSmoothing)
+    val thisVars = NNFNode.removeSubsumed(
+      dr.mixedChild.get.variablesForSmoothing.map(_.undoDomainRecursion(dr.c))
+    )
     val returnValue = dr.variablesForSmoothing != thisVars
     logger.trace(
       "domain recursion: " + returnValue + ". before: " +

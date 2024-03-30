@@ -756,20 +756,7 @@ class Clause(
 
   /** Removes all inequality constraints with the given constant. */
   def removeConstraints(constant: Constant): Clause =
-    Clause(
-      posLits,
-      negLits,
-      Constraints(
-        IneqConstr(constrs.ineqConstrs.flatMap { case (variable, terms) =>
-          terms.flatMap { term: Term =>
-            if (term != constant)
-              List((variable, term))
-            else List()
-          }
-        }.toList: _*),
-        constrs.elemConstrs
-      )
-    )
+    Clause(posLits, negLits, constrs.removeConstraints(constant))
 
   /** Replaces domain1 with domain2 in all ElemConstrs. */
   def replaceDomains(domain1: Domain, domain2: Domain): Clause =
@@ -1002,6 +989,7 @@ sealed trait UnitClause extends Clause {
 
 }
 
+// TODO (Paulius): reorder/organize methods below
 class PositiveUnitClause(
     val atom: Atom,
     val initialConstrs: Constraints = Constraints.empty
@@ -1056,21 +1044,34 @@ class PositiveUnitClause(
       case _                 => None
     }
 
+  /** Generalises the clause to the state it was in before domain recursion.
+    *
+    * More specifically: 1) we remove all inequality constraints with the
+    * constant, and 2) each occurrence of the constant in the atom is replaced
+    * with a FRESH variable associated with the same domain as the constant.
+    * Used in the atom propagation stage of smoothing on the domain recursion
+    * node.
+    */
+  def undoDomainRecursion(constant: Constant) = {
+    var newConstraints = constrs.removeConstraints(constant)
+    val newArgs = atom.args.map {
+      case c: Constant if c == constant => {
+        val newVar = new Var()
+        newConstraints = newConstraints.addDomain(newVar, constant.domain.get)
+        newVar
+      }
+      case other => other
+    }
+    val n = new PositiveUnitClause(
+      new Atom(atom.predicate, newArgs: _*),
+      newConstraints
+    )
+    n
+  }
+
   /** Removes all inequality constraints with the given constant. */
   override def removeConstraints(constant: Constant): PositiveUnitClause =
-    new PositiveUnitClause(
-      atom,
-      Constraints(
-        IneqConstr(constrs.ineqConstrs.flatMap { case (variable, terms) =>
-          terms.flatMap { term: Term =>
-            if (term != constant)
-              List((variable, term))
-            else List()
-          }
-        }.toList: _*),
-        constrs.elemConstrs
-      )
-    )
+    new PositiveUnitClause(atom, constrs.removeConstraints(constant))
 
   override def substitute(from: Var, to: Term): PositiveUnitClause = {
     def substitution(v: Var) = if (v == from) to else v

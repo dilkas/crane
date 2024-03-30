@@ -520,12 +520,18 @@ class ImprovedDomainRecursionNode(
     returnValue
   }
 
-  lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
+  def smooth = if (NNFNode.smoothingCache.contains(this))
     NNFNode.smoothingCache(this)
-  } else {
-    val newNode = simpleClone()
+  else {
+    val newNode =
+      new ImprovedDomainRecursionNode(cnf, None, c, domain, explanation)
+    newNode.domains = domains
     NNFNode.smoothingCache(this) = newNode
-    newNode.update(List(Some(mixedChild.get.smooth)))
+    val childMissing = variablesForSmoothing.flatMap {
+      _.minus(mixedChild.get.variablesForSmoothing)
+    }
+    val childSmoothAll = mixedChild.get.smooth.smoothWith(childMissing.toSet)
+    newNode.update(List(Some(childSmoothAll)))
     newNode
   }
 
