@@ -227,9 +227,11 @@ abstract class IJCAI11Compiler(
       logger.trace("\nInclusion-exclusion. Before:")
       logger.trace(cnf.toString)
       logger.trace("After 1:")
-      logger.trace(cl1.toString)
+      logger.trace(plus1Branch.toString)
       logger.trace("After 2:")
-      logger.trace(cl2.toString)
+      logger.trace(plus2Branch.toString)
+      logger.trace("After 3:")
+      logger.trace(minBranch.toString)
 
       List((Some(node), List(plus1Branch, plus2Branch, minBranch)))
     } else List[Result]()
