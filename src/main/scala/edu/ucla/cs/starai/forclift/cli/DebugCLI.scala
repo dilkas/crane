@@ -77,21 +77,21 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
   val timeoutFlag = argumentParser.option[Int](
     List("t", "timeout"),
     "integer",
-    "Timeout (in seconds) for compilation and for running the C++ program (separately, default: unlimited)"
+    "Timeout (in seconds) for compilation and for running the C++ program (separately, default: unlimited)."
   )
   def timeout = timeoutFlag.value.getOrElse(-1)
 
   val maxDomainSizeFlag = argumentParser.option[Int](
     List("d", "domain-size"),
     "integer",
-    "-d <n> : The compiled C++ program will run on domain sizes 2^0, 2^1, 2^2,..., 2^n (setting all domain sizes to be equal to the same value)."
+    "-d <n> : The compiled C++ program will run on domain sizes 2^0, 2^1, 2^2,..., 2^n (setting all domain sizes to be equal to the same value). Enter 0 to run indefinitely (or until some execution reaches the timeout value)."
   )
   def maxDomainSize = maxDomainSizeFlag.value.getOrElse(-1)
 
   val maxDomainSizeFlag2 = argumentParser.option[Int](
     List("e"),
     "integer",
-    "-e <n> : The compiled C++ program will run on domain sizes 1, 2, 3, ..., n (setting all domain sizes to be equal to the same value)."
+    "-e <n> : Same as -d but the sequence of domain sizes is 1, 2, 3, ..., n."
   )
   def maxDomainSize2 = maxDomainSizeFlag2.value.getOrElse(-1)
 
@@ -182,28 +182,27 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
             )
           )
 
-        if (maxDomainSize > 0) {
-          for (i <- 0 to maxDomainSize) {
-            val n = scala.math.pow(2, i).toInt
+        def runExperiment(
+            firstIndex: Int,
+            lastIndex: Int,
+            domainSizeFromIndex: Int => Int = i => i
+        ): Unit = {
+          var i = firstIndex;
+          while (true) {
+            val n = domainSizeFromIndex(i)
             val count = evaluator.getNumericalAnswer(execFilename, timeout, n)
             logger.info(
               "The model count for domain(s) of size " + n + ": " + count
             )
-            if (count == "TIMEOUT")
-              return
+            if (count == "TIMEOUT" || lastIndex != 0 && i >= lastIndex) return
+            i += 1
           }
         }
 
-        if (maxDomainSize2 > 0) {
-          for (n <- 1 to maxDomainSize2) {
-            val count = evaluator.getNumericalAnswer(execFilename, timeout, n)
-            logger.info(
-              "The model count for domain(s) of size " + n + ": " + count
-            )
-            if (count == "TIMEOUT")
-              return
-          }
-        }
+        if (maxDomainSize >= 0)
+          runExperiment(0, maxDomainSize, i => scala.math.pow(2, i).toInt)
+        if (maxDomainSize2 >= 0)
+          runExperiment(1, maxDomainSize2)
       }
     }
   }
