@@ -75,9 +75,8 @@ object Timer {
 object RunWithTimeout {
 
   def apply[A](timeout: Long)(block: => A): Option[A] =
-    if (timeout < 0) {
-      Some(block)
-    } else {
+    if (timeout < 0) Some(block)
+    else {
       val f = Future(blocking(block))
       try {
         Some(Await.result(f, duration.Duration(timeout, "sec")))

@@ -219,26 +219,6 @@ abstract class AbstractCompiler(
     }
   }
 
-  /* A wrapper for tryCache that adds a timeout feature.
-   *
-   * To use it, uncomment the code below, set the desired timeout value, and
-   * replace tryCache with tryCache2 in the relevant list of inference rules
-   * (e.g., in MyCompiler).
-   */
-  // val Timeout = 1 // s, for tryCache
-  // def tryCache2(cnf: CNF): InferenceResult = {
-  //   val task = new FutureTask(new Callable[InferenceResult]() {
-  //     def call() = tryCache(cnf)
-  //   })
-
-  //   try {
-  //     new Thread(task).start()
-  //     task.get(Timeout, TimeUnit.SECONDS)
-  //   } catch {
-  //     case _: TimeoutException => None
-  //   }
-  // }
-
   // ============================== INFERENCE RULES ===========================
 
   /** Rules that should be applied as soon as possible. */

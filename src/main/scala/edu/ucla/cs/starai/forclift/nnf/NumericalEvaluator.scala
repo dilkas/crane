@@ -1,8 +1,11 @@
 package edu.ucla.cs.starai.forclift.nnf
 
 import java.io._
-import scala.sys.process._
 import scala.collection.mutable.ListBuffer
+import scala.concurrent._
+import ExecutionContext.Implicits.global
+import scala.io._
+import scala.sys.process._
 
 import com.typesafe.scalalogging.LazyLogging
 
@@ -59,6 +62,8 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
     execFilename
   }
 
+  // TODO (Paulius): mention that timeout is in seconds and a negative timeout
+  // means no timeout. Even better, make it an Option[Int].
   /** Runs the compiled C++ code and extracts the numerical answer. */
   private[this] def getNumericalAnswer(
       execFilename: String,
@@ -66,14 +71,13 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
       arguments: Seq[String]
   ): String = {
     val startTime = System.nanoTime
-    def call() = run("Numerical evaluation", execFilename +: arguments)
-    RunWithTimeout(timeout)(call()) match {
-      case Some(out) => {
-        val count =
-          BigInt(out(0)).toString.reverse.grouped(3).mkString(",").reverse
-        count + " (in " + (System.nanoTime - startTime) / 1000000 + " ms)"
-      }
-      case None => "TIMEOUT"
+    try {
+      val out = run("Numerical evaluation", execFilename +: arguments, timeout)
+      val count =
+        BigInt(out(0)).toString.reverse.grouped(3).mkString(",").reverse
+      count + " (in " + (System.nanoTime - startTime) / 1000000 + " ms)"
+    } catch {
+      case e: TimeoutException => "TIMEOUT"
     }
   }
 
@@ -93,6 +97,7 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
   ): String =
     getNumericalAnswer(execFilename, timeout, Seq(domainSize.toString))
 
+  // TODO (Paulius): describe the timeout feature
   /** Runs the given command and returns its output.
     *
     * @param name
@@ -101,17 +106,36 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
     */
   private[this] def run(
       name: String,
-      command: Seq[String]
+      command: Seq[String],
+      timeout: Int = -1
   ): ListBuffer[String] = {
-    val out: ListBuffer[String] = ListBuffer()
-    val err: ListBuffer[String] = ListBuffer()
-    Process(command, Some(new File("."))) ! ExternalBinaries.stringLogger(
-      out,
-      err
-    )
-    if (err.size != 0)
-      throw new Exception(name + " failed: \n" + err.mkString("\n"))
-    out
+    val stdout = ListBuffer[String]()
+    val stderr = ListBuffer[String]()
+    val process =
+      command.run(ProcessLogger(line => stdout += line, line => stderr += line))
+    val thread = new Thread {
+      override def run() {
+        process.destroy()
+      }
+    }
+    Runtime.getRuntime.addShutdownHook(thread)
+
+    // Timeout handling
+    if (timeout >= 0) {
+      val future = Future(blocking(process.exitValue))
+      try {
+        Await.result(future, duration.Duration(timeout, "sec"))
+      } catch {
+        case _: TimeoutException =>
+          process.destroy
+          throw new TimeoutException(s"$name timed out after $timeout seconds")
+      }
+    } else process.exitValue
+
+    Runtime.getRuntime.removeShutdownHook(thread)
+    if (stderr.size != 0)
+      throw new Exception(name + " failed: \n" + stderr.mkString("\n"))
+    stdout
   }
 
   /** Writes the provided content String to a temporary file with the given
