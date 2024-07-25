@@ -139,6 +139,8 @@ std::string GenerateCppCodeWithMain(std::vector<std::string> equations,
                                     const std::vector<std::string> &domains) {
   std::stringstream code;
   code << "#include <array>" << std::endl
+       << "#include <chrono>" << std::endl
+       << "#include <future>" << std::endl
        << "#include <iostream>" << std::endl
        << "#include <string>" << std::endl
        << "#include <vector>" << std::endl
@@ -191,10 +193,10 @@ std::string GenerateCppCodeWithMain(std::vector<std::string> equations,
   code << std::endl
        << GenerateCppCode(equations) << std::endl
        << "int main(int argc, char *argv[]) {" << std::endl
-       << "  if (argc != 2 && argc != " << (domains.size() + 1) << ") {"
+       << "  if (argc != 3 && argc != " << (domains.size() + 2) << ") {"
        << std::endl
-       << "    std::cerr << \"Please provide either one domain size to be used "
-          "for all domains or "
+       << "    std::cerr << \"Please provide a timeout value (-1 for no "
+          "timeout) and either one domain size to be used for all domains or "
        << domains.size()
        << " domain size(s) for the following domains (in this order): ";
 
@@ -209,10 +211,32 @@ std::string GenerateCppCodeWithMain(std::vector<std::string> equations,
        << "  }" << std::endl
        << "  std::array<unsigned long, " << domains.size() << "> arguments;"
        << std::endl
-       << "  for (int i = 1; i <= " << domains.size() << "; i++)" << std::endl
-       << "    arguments[i-1] = std::stoul((argc == 2) ? argv[1] : argv[i]);"
+       << "  for (int i = 2; i <= " << domains.size() + 1 << "; i++)"
        << std::endl
-       << "  std::cout << std::apply(f0, arguments) << std::endl;" << std::endl
+       << "    arguments[i-2] = std::stoul((argc == 3) ? argv[2] : argv[i]);"
+       << std::endl
+       << "  if (argv[1][0] == '-') {" << std::endl
+       << "    std::cout << std::apply(f0, arguments) << std::endl;"
+       << std::endl
+       << "    return 0;" << std::endl
+       << "  }" << std::endl
+       << "  auto timeout = std::chrono::seconds(std::stoul(argv[1]));"
+       << std::endl
+       << "  auto run = [arguments]() {" << std::endl
+       << "    return std::apply(f0, arguments);" << std::endl
+       << "  };" << std::endl
+       << "  std::packaged_task<mpz_class()> task(run);" << std::endl
+       << "  auto future = task.get_future();" << std::endl
+       << "  std::thread thr(std::move(task));" << std::endl
+       << "  if (future.wait_for(timeout) != std::future_status::timeout) {"
+       << std::endl
+       << "    thr.join();" << std::endl
+       << "    std::cout << future.get() << std::endl;" << std::endl
+       << "  } else {" << std::endl
+       << "    thr.detach();" << std::endl
+       << "    std::cout << \"TIMEOUT\" << std::endl;" << std::endl
+       << "    return 0;" << std::endl
+       << "  }" << std::endl
        << "}" << std::endl;
   return code.str();
 }

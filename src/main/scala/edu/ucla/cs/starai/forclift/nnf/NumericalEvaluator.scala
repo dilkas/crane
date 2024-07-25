@@ -1,8 +1,11 @@
 package edu.ucla.cs.starai.forclift.nnf
 
 import java.io._
+import java.util.concurrent._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
+import scala.concurrent.duration._
+import scala.math.pow
 import ExecutionContext.Implicits.global
 import scala.io._
 import scala.sys.process._
@@ -11,8 +14,6 @@ import com.typesafe.scalalogging.LazyLogging
 
 import edu.ucla.cs.starai.forclift.Domain
 import edu.ucla.cs.starai.forclift.inference.DomainSizes
-import edu.ucla.cs.starai.forclift.util.ExternalBinaries
-import edu.ucla.cs.starai.forclift.util.RunWithTimeout
 
 /** The class responsible for compiling equations into C++ programs as well as
   * compiling and (optionally) running those programs.
@@ -20,10 +21,10 @@ import edu.ucla.cs.starai.forclift.util.RunWithTimeout
 class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
 
   // Constants
-  private[this] val CompileFlags = Seq("-std=c++17")
+  private[this] val CppCodeGenerator = "bin/shunting_yard"
   private[this] val CppCompiler = "g++"
+  private[this] val CompileFlags = Seq("-std=c++17")
   private[this] val LinkFlags = Seq("-lgmpxx", "-lgmp")
-  private[this] val ParserBinPath = "bin/shunting_yard"
 
   /** Uses the C++ code generator to generate C++ code for the given equations,
     * compiles it, and returns the filename of the executable.
@@ -44,26 +45,28 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
       ) + "\n" + domainInfo + "\n"
 
     val equationsFilename = writeToTempFile("equations-", ".in", equationInfo)
-    val out = run("Parser execution", Seq(ParserBinPath, equationsFilename))
+    val out =
+      run("C++ code generation", Seq(CppCodeGenerator, equationsFilename))
     logger.debug("\n********** C++ CODE **********\n")
     out.foreach(logger.debug(_))
     logger.debug("\n********** END OF C++ CODE **********\n")
     val cppFilename = writeToTempFile("crane-", ".cpp", out.mkString("\n"))
     val execFilename = cppFilename.take(cppFilename.lastIndexOf('.'))
-    new File(execFilename).deleteOnExit()
     run(
-      "Code compilation",
+      CppCompiler,
       Seq(CppCompiler) ++ CompileFlags ++ Seq(
         cppFilename,
         "-o",
         execFilename
       ) ++ LinkFlags
     )
+    new File(execFilename).deleteOnExit()
     execFilename
   }
 
   // TODO (Paulius): mention that timeout is in seconds and a negative timeout
-  // means no timeout. Even better, make it an Option[Int].
+  // means no timeout. Even better, make it an Option[Int]. Also, note that
+  // timeout is measured in two places: here and in the C++ code.
   /** Runs the compiled C++ code and extracts the numerical answer. */
   private[this] def getNumericalAnswer(
       execFilename: String,
@@ -71,13 +74,13 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
       arguments: Seq[String]
   ): String = {
     val startTime = System.nanoTime
-    try {
-      val out = run("Numerical evaluation", execFilename +: arguments, timeout)
-      val count =
-        BigInt(out(0)).toString.reverse.grouped(3).mkString(",").reverse
-      count + " (in " + (System.nanoTime - startTime) / 1000000 + " ms)"
-    } catch {
-      case e: TimeoutException => "TIMEOUT"
+    val out = run("C++ code", execFilename +: timeout.toString +: arguments)(0)
+    val endTime = System.nanoTime
+    val outOfTime = timeout >= 0 && endTime - startTime > timeout * pow(10, 9)
+    if (out == "TIMEOUT" || outOfTime) {
+      "TIMEOUT"
+    } else {
+      out + " (in " + (System.nanoTime - startTime) / 1000000 + " ms)"
     }
   }
 
@@ -97,7 +100,6 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
   ): String =
     getNumericalAnswer(execFilename, timeout, Seq(domainSize.toString))
 
-  // TODO (Paulius): describe the timeout feature
   /** Runs the given command and returns its output.
     *
     * @param name
@@ -106,35 +108,19 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
     */
   private[this] def run(
       name: String,
-      command: Seq[String],
-      timeout: Int = -1
+      command: Seq[String]
   ): ListBuffer[String] = {
+    logger.debug(s"Running $name: ${command.mkString(" ")}")
     val stdout = ListBuffer[String]()
     val stderr = ListBuffer[String]()
     val process =
       command.run(ProcessLogger(line => stdout += line, line => stderr += line))
-    val thread = new Thread {
-      override def run() {
-        process.destroy()
-      }
-    }
-    Runtime.getRuntime.addShutdownHook(thread)
 
-    // Timeout handling
-    if (timeout >= 0) {
-      val future = Future(blocking(process.exitValue))
-      try {
-        Await.result(future, duration.Duration(timeout, "sec"))
-      } catch {
-        case _: TimeoutException =>
-          process.destroy
-          throw new TimeoutException(s"$name timed out after $timeout seconds")
-      }
-    } else process.exitValue
+    // Wait for the process to finish
+    val exitCode = process.exitValue()
 
-    Runtime.getRuntime.removeShutdownHook(thread)
-    if (stderr.size != 0)
-      throw new Exception(name + " failed: \n" + stderr.mkString("\n"))
+    if (exitCode != 0 || stderr.nonEmpty)
+      throw new RuntimeException(name + " failed:\n" + stderr.mkString("\n"))
     stdout
   }
 
@@ -148,6 +134,7 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
       content: String
   ): String = {
     val file = File.createTempFile(prefix, suffix)
+    logger.debug("Writing to " + file + "...")
     file.deleteOnExit()
     val writer = new BufferedWriter(new FileWriter(file))
     writer.write(content)
