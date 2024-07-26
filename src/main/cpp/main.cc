@@ -235,7 +235,7 @@ std::string GenerateCppCodeWithMain(std::vector<std::string> equations,
        << "  } else {" << std::endl
        << "    thr.detach();" << std::endl
        << "    std::cout << \"TIMEOUT\" << std::endl;" << std::endl
-       << "    return 0;" << std::endl
+       << "    exit(0);" << std::endl
        << "  }" << std::endl
        << "}" << std::endl;
   return code.str();

@@ -175,7 +175,7 @@ class DebugCLI(argumentParser: ArgotParser) extends LazyLogging {
 
         if (numerical)
           logger.info(
-            "Model count: " + evaluator.getNumericalAnswer(
+            "\nModel count: " + evaluator.getNumericalAnswer(
               execFilename,
               timeout,
               inputCLI.wcnfModel.domainSizes
