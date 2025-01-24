@@ -202,11 +202,13 @@ case class Equations(val equations: List[String] = List()) {
   def maxFuncNumber(other: Equations): Int =
     maxFuncNumber.max(other.maxFuncNumber)
 
-  lazy val maxVarNumber: Int = equations
+  lazy val maxVarNumber: Int = {
+    val varNumbers = equations
     .map(("x[0-9]+".r).findAllIn(_))
     .flatten
     .map(v => v.substring(1).toInt)
-    .max
+    if (varNumbers.isEmpty) -1 else varNumbers.max
+  }
 
   def maxVarNumber(other: Equations): Int =
     maxVarNumber.max(other.maxVarNumber)
@@ -270,7 +272,7 @@ case class Equations(val equations: List[String] = List()) {
           val args = Equations
             .findArgs(call.toString().substring(2))
             .toArray
-            .filter(variablesToDomains(_) != constDomain)
+            .filter(v => v != "" && variablesToDomains(v) != constDomain)
           var transformedArgs = actualFuncArgs.clone()
           for (
             index <- (0 to args.length - 1)
@@ -351,7 +353,7 @@ case class Equations(val equations: List[String] = List()) {
       val constDomain = variablesToDomains(
         signature.args(firstDifference).terms(0)._2
       )
-      val newWcnf = wcnf.updateFormula(new CNF(nameToFormula(lhsCall.name)))
+      val newWcnf = Equations.updateFormula(wcnf, constDomain, new CNF(nameToFormula(lhsCall.name)))
       val (simplifiedWcnf, multiplier) = lhsCall.firstConstant.toInt match {
         case 0 => Equations.processZeroConstant(newWcnf, constDomain)
         case 1 => Equations.processOneConstant(newWcnf, constDomain)
@@ -449,7 +451,7 @@ object Equations {
       .substring(3, equation.indexOf('=') - 1)
       .split(',')
       .map(_.replaceAll(" ", ""))
-      .toSet
+      .toSet.filter(_ != "")
     val f0BoundedVars = ("x[0-9]+".r)
       .findAllIn(equation)
       .toSet
@@ -630,7 +632,7 @@ object Equations {
       }
     }
     (
-      wcnf.updateFormula(new CNF(simplifiedClauses.toList)),
+      updateFormula(wcnf, constDomain, new CNF(simplifiedClauses.toList)),
       if (containsNullConst) "0" else "1"
     )
   }
@@ -674,8 +676,15 @@ object Equations {
           )
         newClause.substitute((v: Var) => if (vars.contains(v)) newConst else v)
       }
-      (wcnf.updateFormula(new CNF(newClauses)), "1")
+      (updateFormula(wcnf, constDomain, new CNF(newClauses)), "1")
     }
+  }
+
+  // Exclude from smoothing predicates that are only defined on the constDomain
+  def updateFormula(wcnf: WeightedCNF, constDomain: Domain, newCnf: CNF): WeightedCNF = {
+    val predicatesExcludedFromSmoothing = newCnf.predicates
+      .filter(p => p.domains.size == 1 && p.domains.head == constDomain.root)
+    wcnf.updateFormula(newCnf, predicatesExcludedFromSmoothing.map(_.toAtom).toList)
   }
 
 }

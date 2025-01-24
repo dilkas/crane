@@ -74,12 +74,12 @@ case class WeightedCNF(
     )
   }
 
-  def updateFormula(cnf: CNF) = {
+  def updateFormula(cnf: CNF, newConditionedAtoms: List[PositiveUnitClause]) = {
     WeightedCNF(
       cnf,
       domainSizes.project(cnf.domains),
       predicateWeights.project(cnf.predicates),
-      conditionedAtoms,
+      newConditionedAtoms ::: conditionedAtoms,
       compilerBuilder
     )
   }
@@ -139,7 +139,7 @@ case class WeightedCNF(
     (Equations(equations), variablesToDomains)
   }
 
-  def verifyLogWmc {
+  def verifyLogWmc = {
     VerifyWmcVisitor.verify(smoothNnfs, domainSizes, predicateWeights)
     val correct = ((logSmoothPropWmc - logSmoothWmc).abs.logToDouble < 0.0000001
       || (logSmoothPropWmc.logToDouble - logSmoothWmc.logToDouble).abs < 0.0000001)
