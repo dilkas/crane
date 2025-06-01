@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (National University of Singapore)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -72,11 +72,10 @@ lazy val testSettings = Seq(
     
 lazy val createAllHeaders = addCommandAlias("createAllHeaders",       ";compile:createHeaders;test:createHeaders")
 
-// TODO (Paulius): maybe I can remove some of these dependencies?
 val dependencies = Seq (
   "org.scalatest" % "scalatest_2.11" % "2.2.2" % "test",
   "com.novocode" % "junit-interface" % "0.10-M4" % "test",
-  "org.clapper" %% "argot" % "1.0.3", // TODO (Paulius): replace with scopt to upgrade to Scala 3
+  "org.clapper" %% "argot" % "1.0.3",
   "org.scalanlp" %% "breeze" % "1.0",
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2",
   "ch.qos.logback" % "logback-classic" % "1.2.10",

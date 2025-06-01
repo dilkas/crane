@@ -36,4 +36,3 @@ nnfs/
 .bsp/
 .metals/
 src/main/cpp/test.cpp
-# TODO (Paulius): this should really be renamed
