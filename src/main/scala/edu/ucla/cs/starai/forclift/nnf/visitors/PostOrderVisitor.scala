@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ class PostOrderVisitor extends NnfVisitor[Unit, Unit] {
   /** The set of nodes encountered so far. */
   private[this] val visited = Set[NNFNode]()
 
-  /** Takes care of the right traversal order and the population of both fields. */
+  /** Takes care of the right traversal order and the population of both fields.
+    */
   def visit(node: NNFNode): Unit =
     if (!visited.contains(node)) {
       visited += node
@@ -53,8 +54,8 @@ class PostOrderVisitor extends NnfVisitor[Unit, Unit] {
   }
 
   protected def visitConstraintRemovalNode(
-    cr: ConstraintRemovalNode,
-    u: Unit
+      cr: ConstraintRemovalNode,
+      u: Unit
   ): Unit = visit(cr.child.get)
 
   protected def visitDomainRecursion(dr: DomainRecursionNode, u: Unit): Unit = {
@@ -90,6 +91,10 @@ class PostOrderVisitor extends NnfVisitor[Unit, Unit] {
   }
 
   protected def visitRefNode(ref: Ref, u: Unit): Unit = visit(ref.nnfNode.get)
+
+  protected def visitShatterNode(node: ShatterNode, u: Unit): Unit = visit(
+    node.child.get
+  )
 
   // ========================= SINK NODES =====================================
 

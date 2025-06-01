@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,6 @@ import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.nnf._
 
-object GreedyCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new GreedyCompiler(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new GreedyCompiler(sizeHint, true)
-
-}
-
 /** The original way of constructing circuits via greedily applying whichever
   * inference rule is noticed to apply first.
   *
@@ -39,10 +29,13 @@ object GreedyCompiler {
   */
 class GreedyCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-    grounding: Boolean = false
+    grounding: Boolean = false,
+    skolemize: String = ""
 ) extends Compiler {
 
-  lazy val compiler = if (grounding) {
+  lazy val compiler = if (skolemize.nonEmpty) {
+    new LiftedSkolemizer(sizeHint, skolemize)
+  } else if (grounding) {
     new MyGroundingCompiler(sizeHint)
   } else {
     new MyLiftedCompiler(sizeHint)
@@ -58,17 +51,9 @@ class GreedyCompiler(
         val (node, successors) = tryRule.head
         if (node.isEmpty) {
           require(successors.size == 1)
-          // println("GreedyCompile::compile: recursive call")
           nnf = compile(successors.head)
         } else {
           nnf = List(node.get)
-
-          // println("GreedyCompiler::compile: (" +
-          //           nnf.head.getClass.getSimpleName + ") adding")
-          // println(cnf)
-          // println("AND")
-          // println(nnf.head.cnf)
-
           compiler.updateCache(cnf, nnf.head)
           nnf.head.update(
             successors.map(successor => Some(compile(successor).head))

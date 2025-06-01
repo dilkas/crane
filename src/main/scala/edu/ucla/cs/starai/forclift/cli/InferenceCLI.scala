@@ -39,14 +39,8 @@ package edu.ucla.cs.starai.forclift.cli
 
 import org.clapper.argot.ArgotConverters._
 import org.clapper.argot.ArgotParser
-import edu.ucla.cs.starai.forclift.Atom
-import edu.ucla.cs.starai.forclift.inference.WeightedCNF
-import edu.ucla.cs.starai.forclift.compiler.Compiler
-import edu.ucla.cs.starai.forclift.languages.StatRelModel
-import edu.ucla.cs.starai.forclift.languages.ModelParser
 import edu.ucla.cs.starai.forclift.inference.AllMarginalsRCR
 import edu.ucla.cs.starai.forclift.inference.AllMarginalsExact
-import edu.ucla.cs.starai.forclift.util.Timer
 import edu.ucla.cs.starai.forclift.inference.PartitionFunctionC2D
 import edu.ucla.cs.starai.forclift.inference.QueryProbExact
 import edu.ucla.cs.starai.forclift.inference.QueryProbC2D
@@ -90,12 +84,9 @@ class InferenceCLI(
     // make sure the model is parsed before inference timing starts
     inputCLI.wcnfModel
     inputCLI.queryOpt
-    println("Starting to run inference")
-    Timer{
-      if(allMarginals) runAllMarginalsInference()
-      if(z) runPartitionFunctionInference()
-      if(hasQuery) runQueryInference()
-    }("Inference took "+_+" ms")
+    if(allMarginals) runAllMarginalsInference()
+    if(z) runPartitionFunctionInference()
+    if(hasQuery) runQueryInference()
   }
   
   def runAllMarginalsInference(){

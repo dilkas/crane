@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -238,8 +238,6 @@ class DomainSizes(
     * to domainMap.
     */
   def shrink(domainMap: Map[Domain, Domain]): DomainSizes = {
-    // println("DomainMap:")
-    // println(domainMap)
     val newDomainSizes = map {
       case (domain, _) => {
         val newDomain = domainMap.getOrElse(domain, domain)

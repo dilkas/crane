@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,12 +54,19 @@ sealed abstract class Domain {
     */
   def size(domainSizes: DomainSizes, excluded: Set[Constant]): Int
 
-  //strict this subdomain of other
+  /** Assumes that all constants in excluded are part of the domain.
+    */
+  def symbolicSize(
+      variableNames: Map[Domain, String],
+      excluded: Set[Constant]
+  ): String
+
+  // strict this subdomain of other
   def subDomain(other: Domain) = {
     parents.contains(other)
   }
 
-  //strict this superdomain of other
+  // strict this superdomain of other
   def superDomain(other: Domain) = {
     other.parents.contains(this)
   }
@@ -133,19 +140,19 @@ sealed abstract class Domain {
 
 }
 
-/**
-  * Representation of a domain of a given size and optionally a domain size.
+/** Representation of a domain of a given size and optionally a domain size.
   *
- * @note Explanation about static and dynamic constants:
-  *  - **grounding** and **counting** use the constants in `staticConstants`
-  *    and `dynamicConstants`. `dynamicConstants` are only added when there are
-  *    not enought constants in `staticConstants`.
-  *  - **db** operations like LL ignore the constants in `staticConstants` and
-  *    `dynamicConstants`.
+  * @note
+  *   Explanation about static and dynamic constants:
+  *   - **grounding** and **counting** use the constants in `staticConstants`
+  *     and `dynamicConstants`. `dynamicConstants` are only added when there are
+  *     not enought constants in `staticConstants`.
+  *   - **db** operations like LL ignore the constants in `staticConstants` and
+  *     `dynamicConstants`.
   *
- * @param  name
-  * @param  staticConstants
-  *         Set of given constants that will always be part of the domain.
+  * @param name
+  * @param staticConstants
+  *   Set of given constants that will always be part of the domain.
   */
 class RootDomain(
     val name: String,
@@ -157,13 +164,13 @@ class RootDomain(
     "Cannot have duplicate domain constants."
   )
 
-  /**
-    * Dynamically added constants after domain was created.
-    * These constants are only used to keep track of anonymous constants
-    * introduced while building circuits.
+  /** Dynamically added constants after domain was created. These constants are
+    * only used to keep track of anonymous constants introduced while building
+    * circuits.
     *
-   * @todo Is it ok to compile multiple times? Will this insert every time
-    * some new constants? Does this cause problems?
+    * @todo
+    *   Is it ok to compile multiple times? Will this insert every time some new
+    *   constants? Does this cause problems?
     */
   val dynamicConstants = new mutable.ListBuffer[Constant]
   def addConstant(c: Constant) = {
@@ -173,41 +180,34 @@ class RootDomain(
 
   def knownConstants = staticConstants ::: dynamicConstants.toList
 
-  //    override def hashCode: Int = {
-  //        //41 * staticConstants.foldLeft(1)((c,r) => 41*c + r.hashCode) + name.hashCode
-  ////        name.hashCode
-  //    }
-  //
-  //    /**
-  //     * equals is necessary to put it in a collection.
-  //     *
-  //     * @todo    Check with object equality chapter in Scala book
-  //     */
-  //    override def equals(other: Any): Boolean = {
-  //        this eq other
-  //        //this.hashCode == other.hashCode
-  ////        other match{
-  ////            case root: RootDomain => this.name == root.name
-  ////            case _ => false
-  ////        }
-  //    }
-
   def complement = EmptyDomain
 
-  /**
-    * Assumes that all constants in excluded are part of the domain.
+  /** Assumes that all constants in excluded are part of the domain.
     */
   def size(domainSizes: DomainSizes, excluded: Set[Constant]): Int = {
     math.max(domainSizes(this).size - excluded.size, 0)
   }
 
+  /** Assumes that all constants in excluded are part of the domain.
+    *
+    * NOTE: I'm assuming that the 'max' operation doesn't need to be ported to
+    * the symbol realm.
+    */
+  def symbolicSize(
+      variableNames: Map[Domain, String],
+      excluded: Set[Constant]
+  ): String = if (excluded.isEmpty) {
+      variableNames(this)
+    } else {
+      s"(${variableNames(this)} - ${excluded.size})"
+    }
+
   def constants(domainSizes: DomainSizes): List[Constant] = {
     domainSizes.constants(this)
   }
 
-  /**
-    * Assumes that all constants in excluded are part of the domain.
-    * But, they might be placeholders for any domain element.
+  /** Assumes that all constants in excluded are part of the domain. But, they
+    * might be placeholders for any domain element.
     */
   def constants(
       domainSizes: DomainSizes,
@@ -236,7 +236,12 @@ class RootDomain(
 
 object EmptyDomain extends RootDomain("Empty") {
 
-  override def size(domainSizes: DomainSizes, excluded: Set[Constant]) = 0
+  override def size(domainSizes: DomainSizes, excluded: Set[Constant]): Int = 0
+
+  override def symbolicSize(
+      variableNames: Map[Domain, String],
+      excluded: Set[Constant]
+  ): String = "0"
 
   override def constants(
       domainSizes: DomainSizes,
@@ -259,7 +264,15 @@ object EmptyDomain extends RootDomain("Empty") {
 
 object Universe extends RootDomain("U") {
 
-  override def size(domainSizes: DomainSizes, excluded: Set[Constant]) =
+  override def size(domainSizes: DomainSizes, excluded: Set[Constant]): Int =
+    throw new IllegalStateException(
+      "Cannot compute the domain size of the Universe domain."
+    )
+
+  override def symbolicSize(
+      variableNames: Map[Domain, String],
+      excluded: Set[Constant]
+  ): String =
     throw new IllegalStateException(
       "Cannot compute the domain size of the Universe domain."
     )
@@ -275,14 +288,15 @@ object Universe extends RootDomain("U") {
 
 /** Any domain that's not one of the domains in the original problem.
   *
-  * @param cause the node in the circuit 'responsible' for creating this
-  *              SubDomain.
+  * @param cause
+  *   the node in the circuit 'responsible' for creating this SubDomain.
   */
 abstract class SubDomain(
     val superScript: String,
     val subScript: String,
     parent: Domain,
-    val excludedConstants: collection.Set[Constant]) extends Domain {
+    val excludedConstants: collection.Set[Constant]
+) extends Domain {
 
   // needs to be ordered, therefore List not Set
   lazy val knownIncludedConstants: List[Constant] =
@@ -320,6 +334,24 @@ abstract class SubDomain(
     )
     val nbExtraExcluded = excluded.size - excludedConstants.size
     math.max(0, domainSizes(this).size - nbExtraExcluded)
+  }
+
+  /** Assumes that all constants in excluded are part of the domain.
+    */
+  def symbolicSize(
+      variableNames: Map[Domain, String],
+      excluded: Set[Constant]
+  ): String = {
+    assume(
+      excludedConstants.subsetOf(excluded),
+      "Subdomains always have the same minimal set of excluded constants"
+    )
+    val nbExtraExcluded = excluded.size - excludedConstants.size
+    if (nbExtraExcluded <= 0) {
+      variableNames(this)
+    } else {
+      s"(${variableNames(this)} - $nbExtraExcluded)"
+    }
   }
 
   override def toString = {

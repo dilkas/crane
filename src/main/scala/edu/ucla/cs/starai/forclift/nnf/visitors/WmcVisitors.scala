@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,8 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicReference
 import scala.language.implicitConversions
 import scala.util.Try
+
+import com.typesafe.scalalogging.LazyLogging
 
 import edu.ucla.cs.starai.forclift.constraints.Constraints
 import edu.ucla.cs.starai.forclift.inference._
@@ -56,11 +58,7 @@ object NnfVisitorCache {
 
 }
 
-trait WmcVisitor {
-
-  /** Logs how numbers propagate through circuit nodes. */
-  @inline protected final def log(s: => Any): Unit =
-    if (WmcVisitor.Verbose) println(s)
+trait WmcVisitor extends LazyLogging {
 
   def wmc(
       nnfs: List[NNFNode],
@@ -71,29 +69,26 @@ trait WmcVisitor {
 
 object WmcVisitor {
 
-  /** A hacky way to turn a bunch of println statements on and off. */
-  protected val Verbose = false
-
   /** This latch is reduced to zero as soon as one of the threads finishes
     * computing the weighted model count.
     *
-    * Each visitor periodically checks the condition of the latch, and throws
-    * an InterruptedException soon after it's set to zero.
+    * Each visitor periodically checks the condition of the latch, and throws an
+    * InterruptedException soon after it's set to zero.
     */
   val latch = new CountDownLatch(1)
 
-  /** Should WMC computations be executed in parallel (with one thread for
-    * every circuit) or sequentially?
+  /** Should WMC computations be executed in parallel (with one thread for every
+    * circuit) or sequentially?
     *
-    * For greedy search, it should make no difference, but keeping it
-    * sequential is more genuine. For breadth-first search, use parallel mode
-    * if you want to find the answer as soon as possible and sequential mode
-    * for debugging or otherwise investigative purposes. Another situation
-    * where sequential mode makes more sense is if the breadth-first search
-    * algorithm is set to return only one solution. NOTE: only LogDoubleWmc and
-    * SignLogDoubleWmc have been extended with multithreading.
+    * For greedy search, it should make no difference, but keeping it sequential
+    * is more genuine. For breadth-first search, use parallel mode if you want
+    * to find the answer as soon as possible and sequential mode for debugging
+    * or otherwise investigative purposes. Another situation where sequential
+    * mode makes more sense is if the breadth-first search algorithm is set to
+    * return only one solution. NOTE: only LogDoubleWmc and SignLogDoubleWmc
+    * have been extended with multithreading.
     */
-  lazy val parallelMode: Boolean =  {
+  lazy val parallelMode: Boolean = {
     val p = Try(sys.env.get("PARALLEL").get.toBoolean).getOrElse(false)
     if (p) {
       println("Finished search. Counting in parallel.")
@@ -166,8 +161,8 @@ trait MyRunnable[O]
       WmcVisitor.wmc.get
     } else {
       println("Computing " + nnfs.size + " answer(s)\n")
-      val answers = nnfs.map {
-        nnf => {
+      val answers = nnfs.map { nnf =>
+        {
           val answer = Timer {
             visitWrapper(
               nnf,
@@ -184,8 +179,8 @@ trait MyRunnable[O]
   /** The beginning of a WMC-computing thread.
     *
     * Starts computing the WMC, waits for computations to finish, sets the WMC
-    * as a thread-safe field, and signals all other threads to stop via a
-    * latch. Implements Runnable.
+    * as a thread-safe field, and signals all other threads to stop via a latch.
+    * Implements Runnable.
     */
   def run {
     try {
@@ -259,7 +254,7 @@ protected class LogDoubleWmc(
     else {
       val rlwmcc = visit(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -271,7 +266,7 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val domainSize = cr.domain.size(domainSizes, Set())
     if (domainSize <= 0) {
-      log("0 (constraint removal, base case)")
+      logger.debug("0 (constraint removal, base case)")
       zero
     } else {
       val newDomainSizes = domainSizes + (cr.subdomain, domainSize - 1)
@@ -282,7 +277,7 @@ protected class LogDoubleWmc(
           predicateWeights
         )
       )
-      log(s"$child (constraint removal)")
+      logger.debug(s"$child (constraint removal)")
       child
     }
   }
@@ -293,7 +288,7 @@ protected class LogDoubleWmc(
   ): LogDouble = {
     val (domainSizes, predicateWeights) = params
     val hasSolution = leaf.clause.hasConstraintSolution(domainSizes)
-    //if the clause has no groundings, it resolves to true
+    // if the clause has no groundings, it resolves to true
     if (hasSolution) zero else one
   }
 
@@ -310,7 +305,7 @@ protected class LogDoubleWmc(
       val childchildWmc = visit(dr.mixedChild.get.child.get, params)
       val power = (maxSize * (maxSize - 1)) / 2
       val answer = groundChildWmc.pow(maxSize) * childchildWmc.pow(power)
-      log(
+      logger.debug(
         s"$groundChildWmc ^ $maxSize * $childchildWmc ^ $power = $answer (domain recursion)"
       )
       answer
@@ -324,7 +319,7 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = exists.domain.size(domainSizes, exists.excludedConstants)
     var logWeight = zero
-    log("exists/counting:")
+    logger.debug("exists/counting:")
     for (nbTrue <- 0 to maxSize) {
       val newDomainSizes = (domainSizes
         + (exists.subdomain, nbTrue)
@@ -337,9 +332,9 @@ protected class LogDoubleWmc(
       val childWeight = visit(exists.child.get, newParams)
       val binomialCoeff = Binomial.coeff(maxSize, nbTrue)
       logWeight += binomialCoeff * childWeight
-      log(s" + $maxSize C $nbTrue * $childWeight")
+      logger.debug(s" + $maxSize C $nbTrue * $childWeight")
     }
-    log(s"= $logWeight\n")
+    logger.debug(s"= $logWeight\n")
     logWeight
   }
 
@@ -358,7 +353,7 @@ protected class LogDoubleWmc(
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -383,11 +378,11 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = idr.domain.size(domainSizes, idr.ineqs)
     if (maxSize < 1) {
-      log("1 (improved domain recursion, base case)")
+      logger.debug("1 (improved domain recursion, base case)")
       one
     } else {
       val childchildWmc = visit(idr.mixedChild.get, params)
-      log(s"$childchildWmc (improved domain recursion)")
+      logger.debug(s"$childchildWmc (improved domain recursion)")
       childchildWmc
     }
   }
@@ -400,7 +395,9 @@ protected class LogDoubleWmc(
     val plus2lwmc = visit(ie.plus2.get, params)
     val minlwmc = visit(ie.min.get, params)
     val answer = plus1lwmc + plus2lwmc - minlwmc
-    log(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
+    logger.debug(
+      s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)"
+    )
     answer
   }
 
@@ -411,7 +408,7 @@ protected class LogDoubleWmc(
     val llwmcc = visit(or.l.get, params)
     val rlwmcc = visit(or.r.get, params)
     val answer = llwmcc + rlwmcc
-    log(s"$llwmcc + $rlwmcc = $answer (or)")
+    logger.debug(s"$llwmcc + $rlwmcc = $answer (or)")
     answer
   }
 
@@ -423,9 +420,14 @@ protected class LogDoubleWmc(
     val newDomainSizes = domainSizes.shrink(ref.domainMap)
     val answer =
       visit(ref.nnfNode.get, (newDomainSizes, predicateWeights))
-    log(s"$answer (ref)")
+    logger.debug(s"$answer (ref)")
     answer
   }
+
+  protected def visitShatterNode(
+      node: ShatterNode,
+      params: (DomainSizes, PredicateWeights)
+  ): LogDouble = visit(node.child.get, params)
 
   protected def visitSmoothingNode(
       leaf: SmoothingNode,
@@ -436,7 +438,9 @@ protected class LogDoubleWmc(
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
     val weight = weights.negWPlusPosWLogDouble
     val answer = weight.pow(nbGroundings)
-    log(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
+    logger.debug(
+      s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")"
+    )
     answer
   }
 
@@ -451,18 +455,18 @@ protected class LogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val weights = predicateWeights(leaf.clause.atom.predicate)
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
-    //if the unit clause has no groundings, it resolves to true
+    // if the unit clause has no groundings, it resolves to true
     if (nbGroundings == 0) {
       one
     } else if (leaf.positive) {
       val weight = weights.posWLogDouble
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (positive leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (positive leaf)")
       answer
     } else {
       val weight = weights.negWLogDouble
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (negative leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (negative leaf)")
       answer
     }
   }
@@ -506,7 +510,7 @@ protected class SignLogDoubleWmc(
     else {
       val rlwmcc = visit(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -518,7 +522,7 @@ protected class SignLogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val domainSize = cr.domain.size(domainSizes, Set())
     if (domainSize <= 0) {
-      log("0 (constraint removal, base case)")
+      logger.debug("0 (constraint removal, base case)")
       zero
     } else {
       val newDomainSizes = domainSizes + (cr.subdomain, domainSize - 1) +
@@ -530,7 +534,7 @@ protected class SignLogDoubleWmc(
           predicateWeights
         )
       )
-      log(s"$child (constraint removal)")
+      logger.debug(s"$child (constraint removal)")
       child
     }
   }
@@ -541,7 +545,7 @@ protected class SignLogDoubleWmc(
   ): SignLogDouble = {
     val (domainSizes, predicateWeights) = params
     val hasSolution = leaf.clause.hasConstraintSolution(domainSizes)
-    //if the clause has no groundings, it resolves to true
+    // if the clause has no groundings, it resolves to true
     if (hasSolution) zero else one
   }
 
@@ -559,7 +563,7 @@ protected class SignLogDoubleWmc(
       val childchildWmc = visit(dr.mixedChild.get.child.get, params)
       val power = (maxSize * (maxSize - 1)) / 2
       val answer = groundChildWmc.pow(maxSize) * childchildWmc.pow(power)
-      log(
+      logger.debug(
         s"$groundChildWmc ^ $maxSize * $childchildWmc ^ $power = $answer (domain recursion)"
       )
       answer
@@ -585,9 +589,9 @@ protected class SignLogDoubleWmc(
       val childWeight = visit(exists.child.get, newParams)
       val binomialCoeff = Binomial.coeff(maxSize, nbTrue).toSignDouble
       logWeight += binomialCoeff * childWeight
-      log(s" + $maxSize C $nbTrue * $childWeight")
+      logger.debug(s" + $maxSize C $nbTrue * $childWeight")
     }
-    log(s"= $logWeight\n")
+    logger.debug(s"= $logWeight\n")
     logWeight
   }
 
@@ -606,7 +610,7 @@ protected class SignLogDoubleWmc(
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -631,11 +635,11 @@ protected class SignLogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val maxSize = idr.domain.size(domainSizes, idr.ineqs)
     if (maxSize < 1) {
-      log("1 (improved domain recursion, base case)")
+      logger.debug("1 (improved domain recursion, base case)")
       one
     } else {
       val childchildWmc = visit(idr.mixedChild.get, params)
-      log(s"$childchildWmc (improved domain recursion)")
+      logger.debug(s"$childchildWmc (improved domain recursion)")
       childchildWmc
     }
   }
@@ -648,7 +652,9 @@ protected class SignLogDoubleWmc(
     val plus2lwmc = visit(ie.plus2.get, params)
     val minlwmc = visit(ie.min.get, params)
     val answer = plus1lwmc + plus2lwmc - minlwmc
-    log(s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)")
+    logger.debug(
+      s"$plus1lwmc + $plus2lwmc - $minlwmc = $answer (inclusion-exclusion)"
+    )
     answer
   }
 
@@ -659,7 +665,7 @@ protected class SignLogDoubleWmc(
     val llwmcc = visit(or.l.get, params)
     val rlwmcc = visit(or.r.get, params)
     val answer = llwmcc + rlwmcc
-    log(s"$llwmcc + $rlwmcc = $answer (or)")
+    logger.debug(s"$llwmcc + $rlwmcc = $answer (or)")
     answer
   }
 
@@ -671,9 +677,14 @@ protected class SignLogDoubleWmc(
     val newDomainSizes = domainSizes.shrink(ref.domainMap)
     val answer =
       visit(ref.nnfNode.get, (newDomainSizes, predicateWeights))
-    log(s"$answer (ref)")
+    logger.debug(s"$answer (ref)")
     answer
   }
+
+  protected def visitShatterNode(
+      node: ShatterNode,
+      params: (DomainSizes, PredicateWeights)
+  ): SignLogDouble = visit(node.child.get, params)
 
   protected def visitSmoothingNode(
       leaf: SmoothingNode,
@@ -684,7 +695,9 @@ protected class SignLogDoubleWmc(
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
     val weight = weights.negWPlusPosW
     val answer = weight.pow(nbGroundings)
-    log(s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")")
+    logger.debug(
+      s"$weight ^ $nbGroundings = $answer (smoothing for " + leaf.cnf + ")"
+    )
     answer
   }
 
@@ -699,18 +712,18 @@ protected class SignLogDoubleWmc(
     val (domainSizes, predicateWeights) = params
     val weights = predicateWeights(leaf.clause.atom.predicate)
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
-    //if the unit clause has no groundings, it resolves to true
+    // if the unit clause has no groundings, it resolves to true
     if (nbGroundings == 0) {
       one
     } else if (leaf.positive) {
       val weight = weights.posW
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (positive leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (positive leaf)")
       answer
     } else {
       val weight = weights.negW
       val answer = weight.pow(nbGroundings)
-      log(s"$weight ^ $nbGroundings = $answer (negative leaf)")
+      logger.debug(s"$weight ^ $nbGroundings = $answer (negative leaf)")
       answer
     }
   }
@@ -746,7 +759,7 @@ protected class CachingLogDoubleWmc extends LogDoubleWmc {
     else {
       val rlwmcc = retrieveWmc(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -762,7 +775,7 @@ protected class CachingLogDoubleWmc extends LogDoubleWmc {
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -822,7 +835,7 @@ protected class CachingSignLogDoubleWmc extends SignLogDoubleWmc {
     else {
       val rlwmcc = retrieveWmc(and.r.get, params)
       val answer = llwmcc * rlwmcc
-      log(s"$llwmcc * $rlwmcc = $answer (and)")
+      logger.debug(s"$llwmcc * $rlwmcc = $answer (and)")
       answer
     }
   }
@@ -838,7 +851,7 @@ protected class CachingSignLogDoubleWmc extends SignLogDoubleWmc {
       one
     } else {
       val answer = childlwmc.pow(nbGroundings)
-      log(
+      logger.debug(
         s"$childlwmc ^ $nbGroundings = $answer (forall / independent partial grounding)"
       )
       answer
@@ -947,6 +960,11 @@ class SafeSignLogDoubleWmc extends SignLogDoubleWmc {
     } else NaN
   }
 
+  override protected def visitShatterNode(
+      node: ShatterNode,
+      params: (DomainSizes, PredicateWeights)
+  ): SignLogDouble = super.visitShatterNode(node, params)
+
   override protected def visitSmoothingNode(
       leaf: SmoothingNode,
       params: (DomainSizes, PredicateWeights)
@@ -969,8 +987,8 @@ class SafeSignLogDoubleWmc extends SignLogDoubleWmc {
 
 }
 
-/** Compute WMC while also verifying the counts of every intermediate step
-  * using C2D
+/** Compute WMC while also verifying the counts of every intermediate step using
+  * C2D
   */
 
 object VerifyWmcVisitor {
@@ -1081,8 +1099,7 @@ protected class VerifyWmcVisitor extends SignLogDoubleWmc {
 
 }
 
-/**
-  * Goes out of memory
+/** Goes out of memory
   */
 protected class BigIntWmc(val decimalPrecision: Int = 100)
     extends NnfVisitor[
@@ -1184,7 +1201,7 @@ protected class BigIntWmc(val decimalPrecision: Int = 100)
   ): BigInt = {
     val (domainSizes, predicateWeights) = params
     val hasSolution = leaf.clause.hasConstraintSolution(domainSizes)
-    //if the clause has no groundings, it resolves to true
+    // if the clause has no groundings, it resolves to true
     if (hasSolution) zero else one
   }
 
@@ -1297,6 +1314,11 @@ protected class BigIntWmc(val decimalPrecision: Int = 100)
     answer
   }
 
+  protected def visitShatterNode(
+      node: ShatterNode,
+      params: (DomainSizes, PredicateWeights)
+  ): BigInt = visit(node.child.get, params)
+
   protected def visitSmoothingNode(
       leaf: SmoothingNode,
       params: (DomainSizes, PredicateWeights)
@@ -1319,7 +1341,7 @@ protected class BigIntWmc(val decimalPrecision: Int = 100)
     val (domainSizes, predicateWeights) = params
     val weights = predicateWeights(leaf.clause.atom.predicate)
     val nbGroundings = leaf.clause.nbGroundings(domainSizes)
-    //if the unit clause has no groundings, it resolves to true
+    // if the unit clause has no groundings, it resolves to true
     if (nbGroundings == 0) one
     else if (leaf.positive)
       BigInt((decimalPrecision * weights.posWDouble).toInt).pow(nbGroundings)

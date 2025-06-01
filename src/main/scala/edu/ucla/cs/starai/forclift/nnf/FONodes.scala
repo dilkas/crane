@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -100,7 +100,6 @@ class IndependentPartialGroundingNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: IndependentPartialGroundingNode")
       val (nl, el) = child.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -185,18 +184,6 @@ class CountingNode(
 
   def size = child.get.size + 1
 
-  // ========================= EQUALITY =======================================
-
-  // override lazy val hashCode: Int = cnf.hashCode
-
-  // def canEqual(a: Any) = a.isInstanceOf[CountingNode]
-
-  // override def equals(that: Any): Boolean =
-  //   that match {
-  //     case that: CountingNode => cnf == that.cnf
-  //     case _                  => false
-  //   }
-
   // ========================= EVERYTHING ELSE ================================
 
   override def update(children: List[Option[NNFNode]]) = {
@@ -260,7 +247,6 @@ class CountingNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: CountingNode")
       val (nl, el) = child.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -303,8 +289,6 @@ class CountingNode(
       getName(
         nameSpace
       ) + " = count " + subdomain + " from " + domain)
-  // + " " + child.get.getName(nameSpace) + "\n" + "\n"
-  // + child.get.toString(nameSpace))
 
 }
 
@@ -395,7 +379,6 @@ class DomainRecursionNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: DomainRecursionNode")
       val (n1, e1) = mixedChild.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -537,12 +520,18 @@ class ImprovedDomainRecursionNode(
     returnValue
   }
 
-  lazy val smooth = if (NNFNode.smoothingCache.contains(this)) {
+  def smooth = if (NNFNode.smoothingCache.contains(this))
     NNFNode.smoothingCache(this)
-  } else {
-    val newNode = simpleClone()
+  else {
+    val newNode =
+      new ImprovedDomainRecursionNode(cnf, None, c, domain, explanation)
+    newNode.domains = domains
     NNFNode.smoothingCache(this) = newNode
-    newNode.update(List(Some(mixedChild.get.smooth)))
+    val childMissing = variablesForSmoothing.flatMap {
+      _.minus(mixedChild.get.variablesForSmoothing)
+    }
+    val childSmoothAll = mixedChild.get.smooth.smoothWith(childMissing.toSet)
+    newNode.update(List(Some(childSmoothAll)))
     newNode
   }
 
@@ -556,7 +545,6 @@ class ImprovedDomainRecursionNode(
   ): (String, String) =
     if (depth >= maxDepth) cutoff(nameSpace, compact)
     else {
-      // println("toDotNode: ImprovedDomainRecursionNode")
       val (n1, e1) = mixedChild.get.toDotNode(
         domainSizes,
         predicateWeights,
@@ -615,7 +603,5 @@ class ImprovedDomainRecursionNode(
   override def toString(nameSpace: NameSpace[NNFNode, String]): String =
     (super.toString(nameSpace) + getName(nameSpace) + " = domainrec " + c +
       " from " + domain)
-  // + " " + mixedChild.get.getName(nameSpace) + "\n" + "\n" +
-  // mixedChild.get.toString(nameSpace))
 
 }

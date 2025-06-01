@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@ import util._
 //Arguments
 sealed trait Term
 
-sealed /*not case*/ class Var( /*domain: Domain[T]*/ ) extends Term {
+sealed /*not case*/ class Var extends Term {
 
   override def toString = "X" + (hashCode % 10000)
 
@@ -39,11 +39,9 @@ sealed /*not case*/ class Var( /*domain: Domain[T]*/ ) extends Term {
 
 }
 
-
 object Var {
   type Substitution = Var => Term
 }
-
 
 case class Constant(val value: Any) extends Term {
 
@@ -67,11 +65,6 @@ case class Constant(val value: Any) extends Term {
 
   def domain = _domain
 
-  //	override def toString = {
-  //        if(domain.isEmpty) value.toString
-  //        else value.toString + "_{"+domain.get+"}"
-  //    }
-
   override def toString = value.toString
 
 }
@@ -89,7 +82,6 @@ class VarNameSpace extends NameSpace[Any, String] {
         lastUsedVar += 1
         variable.toString(lastUsedVar)
       }
-      //case _ => throw new IllegalStateException("Namespace only supports variables")
       case _ => obj.toString
     }
   }

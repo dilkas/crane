@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,36 +21,26 @@ import edu.ucla.cs.starai.forclift.compiler._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift._
 
-object MyCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new MyLiftedCompiler(sizeHint)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new MyGroundingCompiler(sizeHint)
-
-}
-
 /** The latest version of the compiler.
   *
-  * Adds three more rules:
-  * 1) an improved version of domain recursion capable of creating cycles,
-  * 2) constraint removal that removes a bunch of 'X != x' constraints by
-  *    creating a new domain without domain value x,
-  * 3) contradiction filter that finds a completely empty clause and removes
-  *    all other clauses so that the formula would be immediately identified as
-  *    unsatisfiable by another rule.
+  * Adds three more rules: 1) an improved version of domain recursion capable of
+  * creating cycles, 2) constraint removal that removes a bunch of 'X != x'
+  * constraints by creating a new domain without domain value x, 3)
+  * contradiction filter that finds a completely empty clause and removes all
+  * other clauses so that the formula would be immediately identified as
+  * unsatisfiable by another rule.
   *
-  * @param nnfCache see the AbstractCompiler class
+  * @param nnfCache
+  *   see the AbstractCompiler class
   */
 abstract class MyCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
     nnfCache: Compiler.Buckets = new Compiler.Buckets
 ) extends V1_1Compiler(sizeHint, nnfCache) {
 
-  def tryImprovedDomainRecursion(cnf: CNF) =
-    cnf.domainsWithVariablesInLiterals.map {
-      domain => {
+  def tryGeneralisedDomainRecursion(cnf: CNF) =
+    cnf.domainsWithVariablesInLiterals.map { domain =>
+      {
         val constant = groundingConstantFor(cnf, domain)
         val mixedClauses = cnf.clauses.flatMap { clause =>
           {
@@ -78,7 +68,7 @@ abstract class MyCompiler(
             }
           }
         }
-        val mixedCNF = new CNF(mixedClauses)
+        val mixedCNF = new CNF(mixedClauses, cnf.excludedDomains + domain)
         val msg = "Improved domain recursion on $" + domain + "$."
         val node = new ImprovedDomainRecursionNode(
           cnf,
@@ -87,10 +77,10 @@ abstract class MyCompiler(
           domain,
           msg
         )
-        log("\n" + msg + " Before:")
-        log(cnf)
-        log("After:")
-        log(mixedCNF + "\n")
+        logger.trace("\n" + msg + " Before:")
+        logger.trace(cnf.toString)
+        logger.trace("After:")
+        logger.trace(mixedCNF + "\n")
         (Some(node), List(mixedCNF))
       }
     }.toList
@@ -114,13 +104,13 @@ abstract class MyCompiler(
                     !atom.constants.contains(constant)
                   }
                 } &&
-                  cnf.forall { clause =>
-                    clause.allVariables.forall { variable: Var =>
-                      clause.constrs.domainFor(variable) !=
-                        originalDomain ||
-                        clause.constrs.ineqConstrs(variable).contains(constant)
-                    }
+                cnf.forall { clause =>
+                  clause.allVariables.forall { variable: Var =>
+                    clause.constrs.domainFor(variable) !=
+                      originalDomain ||
+                      clause.constrs.ineqConstrs(variable).contains(constant)
                   }
+                }
               ) {
                 val newIndex = (originalDomain.nbSplits + 1).toString
                 val newDomain = originalDomain.subdomain(
@@ -128,22 +118,28 @@ abstract class MyCompiler(
                   newIndex,
                   excludedConstants = Set(constant)
                 )
-                val newCnf = CNF(cnf.map { clause =>
-                                   clause
-                                     .removeConstraints(constant)
-                                     .replaceDomains(originalDomain, newDomain)
-                                 }.toList: _*)
+                val newCnf = CNF(
+                  cnf.excludedDomains,
+                  cnf.map { clause =>
+                    clause
+                      .removeConstraints(constant)
+                      .replaceDomains(originalDomain, newDomain)
+                  }.toList: _*
+                )
                 val node = new ConstraintRemovalNode(
                   cnf,
                   None,
                   originalDomain,
-                  newDomain
+                  newDomain,
+                  constant
                 )
 
-                log("\nConstraint removal. Before:")
-                log(cnf.toString)
-                log("Constraint removal. After:")
-                log(newCnf + "\n")
+                logger.trace(
+                  s"\nConstraint removal of $constant from $originalDomain, introducing $newDomain. Before:"
+                )
+                logger.trace(cnf.toString)
+                logger.trace("Constraint removal. After:")
+                logger.trace(newCnf + "\n")
 
                 return List((Some(node), List(newCnf)))
               }
@@ -161,7 +157,14 @@ abstract class MyCompiler(
       c.isConditionalContradiction && c.isUnconditional
     }
     if (contradictionClauseOption.nonEmpty) {
-      List((None, List(new CNF(List(contradictionClauseOption.get)))))
+      List(
+        (
+          None,
+          List(
+            new CNF(List(contradictionClauseOption.get), cnf.excludedDomains)
+          )
+        )
+      )
     } else {
       List[Result]()
     }
@@ -178,20 +181,19 @@ abstract class MyCompiler(
       tryRemoveDoubleClauses, // revived
       tryPositiveUnitPropagation,
       tryNegativeUnitPropagation,
+      tryShatter, // 0
       tryConstraintRemoval, // new
-      tryIndependentSubtheories, // +1
-      tryIndependentSubtheoriesAfterShattering
+      tryIndependentSubtheories // +1
     )
 
   override def nonGreedyRules: List[InferenceRule] =
     List(
       tryCache, // revamped
-      tryGroundDecomposition, // +1
+      tryShannonDecomposition, // +1
       tryInclusionExclusion, // +2
-      tryShatter, // 0
       tryIndependentPartialGrounding, // 0
-      tryCounting, // 0
-      tryImprovedDomainRecursion // 0, new
+      tryAtomCounting, // 0
+      tryGeneralisedDomainRecursion // 0, new
     )
 
 }

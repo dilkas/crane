@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,16 +21,6 @@ import collection._
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler._
 import edu.ucla.cs.starai.forclift.nnf._
-
-object V1_1Compiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new V1_1LiftedCompiler(sizeHint)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new V1_1GroundingCompiler(sizeHint)
-
-}
 
 abstract class V1_1Compiler(
   sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
@@ -56,12 +46,11 @@ abstract class V1_1Compiler(
   override def nonGreedyRules: List[InferenceRule] = List(
     tryTautologyClauseElimination, // added wrt NIPS11
     tryIndependentSubtheories,
-    tryIndependentSubtheoriesAfterShattering,
-    tryGroundDecomposition,
+    tryShannonDecomposition,
     tryInclusionExclusion,
     tryShatter,
     tryIndependentPartialGrounding, // O(log(n))
-    tryCounting, // O(n)
+    tryAtomCounting, // O(n)
     tryDomainRecursion // is O(log(n)) now! But assumes no unary predicates
   )
 

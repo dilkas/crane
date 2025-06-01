@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ import edu.ucla.cs.starai.forclift.nnf._
 
 /** Initialises 'nodes' to be the set of all direct successors of Ref nodes.
   *
-  * Needed by LatexOutputVisitor to know which nodes introduce new functions in
-  * the algebraic description of the FCG.
+  * Needed by OutputVisitors to know which nodes introduce new functions in the
+  * algebraic description of the FCG.
   */
 class FunctionIntroductionFinder extends NnfVisitor[Unit, Unit] {
 
@@ -92,6 +92,10 @@ class FunctionIntroductionFinder extends NnfVisitor[Unit, Unit] {
       visit(node)
     }
   }
+
+  protected def visitShatterNode(node: ShatterNode, u: Unit): Unit = visit(
+    node.child.get
+  )
 
   // ========================= SINK NODES =====================================
 

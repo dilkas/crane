@@ -84,8 +84,8 @@ object ExternalBinaries {
   lazy val dot2texCmd = dot2tex.cmd
 
   lazy val logger = ProcessLogger(
-    (o: String) => {}, //println("out: " + o),
-    (e: String) => {}) //println("err: " + e))
+    (o: String) => {},
+    (e: String) => {})
 
   def stringLogger(out: ListBuffer[String], err: ListBuffer[String]): ProcessLogger = {
     ProcessLogger(
@@ -99,27 +99,16 @@ object ExternalBinaries {
    */
   def checkAvailable(binary: ExternalBinary) {
     val cmd = binary.availableCmd
-    //print("\nTrying cmd: "+cmd+"\n")
-    //print("C2DCMD="+getenv("C2DCMD")+"\n")
-    //val pb = new ProcessBuilder(cmd.split(" "):_*)
     val output = new ListBuffer[String]
     val pb = Process(cmd)
     var exitcode = 0
     try {
-      //print("\nStarting process\n")
-      //val prcs = pb.run()
-      //print("\nRunning process\n")
-      //exitcode = prcs.exitValue()
       exitcode = pb ! stringLogger(output, output)
-      //print("\nExitcode = "+exitcode+"\n")
-      //prcs.destroy()
     } catch {
       case e: IOException => {
-        //print(e);
         exitcode = 127
       }
       case e: Throwable => {
-        //print(e);
         exitcode = 1
       }
     }

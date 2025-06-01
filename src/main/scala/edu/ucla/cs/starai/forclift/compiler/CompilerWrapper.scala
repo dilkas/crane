@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,18 @@ package edu.ucla.cs.starai.forclift.compiler
 
 import scala.util.Try
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
-
-object CompilerWrapper {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new CompilerWrapper(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new CompilerWrapper(sizeHint, true)
-
-}
 
 /** A convenient way to switch between greedy and breadth-first search. */
 class CompilerWrapper(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
     grounding: Boolean = false
-) extends Compiler {
+) extends Compiler
+    with LazyLogging {
 
   /** Search type is read from an environmental variable, with greedy search as
     * the default.
@@ -49,23 +42,34 @@ class CompilerWrapper(
   lazy val greedy: Boolean = {
     val g = Try(sys.env.get("GREEDY").get.toBoolean).getOrElse(true)
     if (g) {
-      println("Starting greedy search")
+      logger.info("Starting greedy search.")
     } else {
-      println("Starting breadth-first search")
+      logger.info("Starting breadth-first search.")
     }
     g
   }
 
-  lazy val compiler = if (greedy) {
-    new GreedyCompiler(sizeHint, grounding)
-  } else {
-    new BreadthCompiler(sizeHint, grounding)
+  lazy val skolemize: String = {
+    val s = Try(sys.env.get("SKOLEMIZE").get).getOrElse("")
+    if (s.nonEmpty)
+      logger.info("Performing only Skolemization and unit propagation.")
+    s
   }
 
-  /** After compilation completes, run two visitors on the circuit that
-    * together update the 'domains' field of NNFNode.
+  lazy val compiler = if (greedy) {
+    new GreedyCompiler(sizeHint, grounding, skolemize)
+  } else {
+    new BreadthCompiler(sizeHint, grounding, skolemize)
+  }
+
+  /** After compilation completes, run two visitors on the circuit that together
+    * update the 'domains' field of NNFNode.
     */
   override def compile(cnf: CNF): List[NNFNode] = {
+    logger.info("")
+    logger.info("Compiling formula:")
+    logger.info(cnf.toString)
+    logger.info("")
     val nnfs = compiler.compile(cnf)
     nnfs.foreach { nnf =>
       {

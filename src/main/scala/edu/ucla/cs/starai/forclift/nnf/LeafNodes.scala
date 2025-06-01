@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,6 @@ class GroundingNode(val cnf: CNF, val explanation: String = "")
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: GroundingNode")
     (
       ("  " + getName(
         nameSpace
@@ -94,7 +93,6 @@ object TrueNode extends NNFNode {
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: TrueNode")
     (
       ("  " + getName(
         nameSpace
@@ -133,7 +131,6 @@ object FalseNode extends NNFNode {
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: FalseNode")
     (
       ("  " + getName(
         nameSpace
@@ -174,7 +171,6 @@ class ContradictionLeaf(
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: ContradictionLeaf")
     (
       ("  " + getName(
         nameSpace
@@ -226,7 +222,6 @@ class UnitLeaf(
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: UnitLeaf for the formula: " + cnf)
     (
       ("  " + getName(
         nameSpace
@@ -274,7 +269,6 @@ class SmoothingNode(val clause: PositiveUnitClause)
       depth: Int,
       maxDepth: Int = Integer.MAX_VALUE
   ): (String, String) = {
-    // println("toDotNode: SmoothingNode")
     (
       ("  " + getName(
         nameSpace

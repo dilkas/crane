@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,20 +19,12 @@ package edu.ucla.cs.starai.forclift.compiler
 import scala.collection.mutable._
 import scala.util.Try
 
+import com.typesafe.scalalogging.LazyLogging
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.compiler.rulesets._
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
-
-object BreadthCompiler {
-
-  val builder: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new BreadthCompiler(sizeHint, false)
-
-  val builderWithGrounding: Compiler.Builder =
-    (sizeHint: Compiler.SizeHints) => new BreadthCompiler(sizeHint, true)
-
-}
 
 /** A variation of breadth-first search but with some rules applied in a greedy
   * manner.
@@ -43,29 +35,34 @@ object BreadthCompiler {
   */
 class BreadthCompiler(
     sizeHint: Compiler.SizeHints = Compiler.SizeHints.unknown(_),
-    grounding: Boolean = false
-) extends Compiler {
+    grounding: Boolean = false,
+    skolemize: String = ""
+) extends Compiler with LazyLogging {
 
   /** Found solutions */
   private[this] var circuits: List[NNFNode] = List[NNFNode]()
 
   /** Two parameters for the extensiveness of search */
-  lazy val maxDepth: Int = Try(sys.env.get("DEPTH").get.toInt).getOrElse(5)
+  lazy val maxDepth: Int = Try(sys.env.get("DEPTH").get.toInt).getOrElse(-1)
   lazy val numSolutions: Int = Try(sys.env.get("SOLUTIONS").get.toInt).
-    getOrElse(100)
+    getOrElse(1)
 
   private[this] final case class EndSearchException(
       private val message: String = "",
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
-  def compilerBuilder =
-    if (grounding) new MyGroundingCompiler(sizeHint)
-    else new MyLiftedCompiler(sizeHint)
+  def compilerBuilder = if (skolemize.nonEmpty) {
+      new LiftedSkolemizer(sizeHint, skolemize)
+    } else if (grounding) {
+      new MyGroundingCompiler(sizeHint)
+    } else {
+      new MyLiftedCompiler(sizeHint)
+    }
 
   override def foundSolution(circuit: NNFNode): Unit = {
     circuits = circuit :: circuits
-    println("FOUND " + circuits.size + " SOLUTION(S)")
+    logger.trace("FOUND " + circuits.size + " SOLUTION(S)")
     if (circuits.size >= numSolutions)
       throw new EndSearchException
   }
@@ -74,27 +71,26 @@ class BreadthCompiler(
     val compiler = compilerBuilder
     val initialCircuit = compiler.applyGreedyRules(cnf)
 
+
+    try {
     if (initialCircuit.formulas.isEmpty) {
       foundSolution(initialCircuit.circuit.get)
     } else {
       val q = Queue(initialCircuit)
-      // val q = PriorityQueue(compiler.applyGreedyRules(cnf))(Ordering.by(_.priority))
       var depth = 0
-      try {
-        while (depth <= maxDepth && q.nonEmpty) {
-          println("depth: " + depth)
+        while ((maxDepth < 0 || depth <= maxDepth) && q.nonEmpty) {
+          logger.trace("depth: " + depth)
           val partialCircuit = q.dequeue
           if (partialCircuit.depth > depth) {
             depth = partialCircuit.depth
           }
-          if (depth <= maxDepth) {
+          if (maxDepth < 0 || depth <= maxDepth)
             q ++= partialCircuit.nextCircuits(this)
-          }
         }
+    }
       } catch {
         case e: EndSearchException => {}
       }
-    }
 
     if (!circuits.isEmpty) {
       circuits

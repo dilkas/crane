@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,19 +17,19 @@
 
 package edu.ucla.cs.starai.forclift.nnf
 
+import breeze.math._
 import collection._
+import collection.mutable.ListBuffer
+import java.io._
+import scala.sys.process._
+import System._
+
 import edu.ucla.cs.starai.forclift._
 import edu.ucla.cs.starai.forclift.nnf.visitors._
 import edu.ucla.cs.starai.forclift.util._
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.util.Binomial._
 import edu.ucla.cs.starai.forclift.util.ExternalBinaries
-import scala.sys.process._
-import System._
-import collection.mutable.ListBuffer
-import constraints._
-import java.io._
-import breeze.math._
 
 class NNFNameSpace extends NameSpace[NNFNode, String] {
 
@@ -156,7 +156,7 @@ abstract class NNFNode(
 
   def getName(nameSpace: NameSpace[NNFNode, String]) = nameSpace.getName(this)
 
-  val fontsize = "" //"\tiny"
+  val fontsize = ""
 
   // ========================= CLONING ========================================
 
@@ -173,23 +173,11 @@ abstract class NNFNode(
     */
   private def myClone2(): NNFNode =
     if (NNFNode.cloningCache.contains(this)) {
-      // println("myClone: found " + getClass.getSimpleName + " in the cache")
       NNFNode.cloningCache(this)
     } else {
       val newNode: NNFNode = simpleClone()
       NNFNode.cloningCache(this) = newNode
-
-      // println("myClone: constructing a copy of " + getClass.getSimpleName +
-      //           " " + hashCode + ": " + newNode.hashCode)
-      // if (isInstanceOf[ConstraintRemovalNode]) {
-      //   println("\n" + asInstanceOf[ConstraintRemovalNode] + "\n")
-      // }
-      // println("myClone: there are " + directSuccessors.size +
-      //           " direct successors")
-
       newNode.update(directSuccessors.map(_.map(n => n.myClone2())))
-      // println("myClone: finished the construction of " +
-      //           getClass.getSimpleName + " " + hashCode)
       newNode
     }
 
@@ -217,11 +205,6 @@ abstract class NNFNode(
     val missing = allVars.flatMap {
       _.minus(variablesForSmoothing union excluded)
     }
-    // println("smoothWithPredicates: allVars: " + allVars)
-    // println("smoothWithPredicates: variablesForSmoothing: " + variablesForSmoothing)
-    // println("smoothWithPredicates: missing: " + missing.toList)
-    // println("smoothWithPredicates: after makeDisjoint: " +
-    //           makeDisjoint(missing.toList))
     thisSmoothed.smoothWith(makeDisjoint(missing.toList).toSet)
   }
 
@@ -231,7 +214,6 @@ abstract class NNFNode(
       assume(atoms.forall { atom1 =>
         atoms.forall { atom2 => (atom1 eq atom2) || atom1.independent(atom2) }
       })
-      // println("Adding a smoothing node for clause: " + clause)
       new And(
         branch.cnf,
         Some(new SmoothingNode(clause)),

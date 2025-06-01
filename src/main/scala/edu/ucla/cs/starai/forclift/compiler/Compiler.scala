@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 package edu.ucla.cs.starai.forclift.compiler
 
 import collection._
-
+import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent._
 
 import edu.ucla.cs.starai.forclift.nnf._
@@ -30,8 +30,10 @@ object Compiler {
   type Buckets = mutable.HashMap[Int, List[(CNF, NNFNode)]]
 
   object Builder {
-    val default: Builder = CompilerWrapper.builder
-    val defaultWithGrounding: Builder = CompilerWrapper.builderWithGrounding
+    val default: Builder = (sizeHint: SizeHints) =>
+      new CompilerWrapper(sizeHint, false)
+    val defaultWithGrounding: Builder = (sizeHint: SizeHints) =>
+      new CompilerWrapper(sizeHint, true)
   }
 
   type Builder = ((Domain => Int) => Compiler)
@@ -108,14 +110,15 @@ trait LiftedCompiler extends AbstractCompiler {
   *
   * Implements tryCache and some of the code used to apply rules to formulas
   * (the rest is in PartialCircuit).
-  * @param nnfCache maps hash codes of formulas to pairs of formulas and their
-  *                 circuit nodes. It is used to identify formulas potentially
-  *                 suitable for a Ref node, i.e., to add additional arcs to
-  *                 the circuit that make it no longer a tree.
+  * @param nnfCache
+  *   maps hash codes of formulas to pairs of formulas and their circuit nodes.
+  *   It is used to identify formulas potentially suitable for a Ref node, i.e.,
+  *   to add additional arcs to the circuit that make it no longer a tree.
   */
 abstract class AbstractCompiler(
     val nnfCache: Compiler.Buckets = new Compiler.Buckets
-) extends Compiler {
+) extends Compiler
+    with LazyLogging {
 
   // ============================== TYPES ====================================
 
@@ -132,19 +135,10 @@ abstract class AbstractCompiler(
 
   protected type InferenceRule = CNF => InferenceResult
 
-  // ============================== DATA ======================================
-
-  /** A hacky way to turn a bunch of println statements on and off. */
-  private[this] val Verbose = true
-
   // ============================== MISC METHODS ==============================
 
   /** The main purpose of myClone is to call cloneCache. */
   def myClone(): AbstractCompiler
-
-  /** Used to log what compilation rules are being applied and how they change
-    * the formula. */
-  @inline protected final def log(s: => Any): Unit = if (Verbose) println(s)
 
   def cannotCompile(cnf: CNF): NNFNode
 
@@ -161,12 +155,7 @@ abstract class AbstractCompiler(
     nnfCache.map {
       case (key, value) => {
         val newValue = value.map {
-          case (formula, node) => {
-            // println("Does cloningCache of size " + NNFNode.cloningCache.size +
-            //           " contain the " + node.getClass.getSimpleName + " " +
-            //           node.hashCode + ": " + NNFNode.cloningCache.contains(node))
-            (formula, NNFNode.cloningCache(node))
-          }
+          case (formula, node) => (formula, NNFNode.cloningCache(node))
         }
         (key, newValue)
       }
@@ -175,21 +164,13 @@ abstract class AbstractCompiler(
   /** Put the (cnf, nnf) pair in nnfCache. */
   def updateCache(cnf: CNF, nnf: NNFNode): Unit = {
     assume(nnf != null)
-
-    // println("updateCache: trying to add " + nnf.getClass.getSimpleName + " " +
-    //           nnf.hashCode)
-    // println("updateCache: hash code already exists: " +
-    //           nnfCache.contains(cnf.hashCode))
-    // println("updateCache: a cache entry for the same node exists: " +
-    //           (nnfCache.contains(cnf.hashCode) && nnfCache(cnf.hashCode).exists
-    //              { case (_, node) => node == nnf }))
-
-    if (
+    if (cnf.isSuitableForRecursion &&
       !nnf.isInstanceOf[Ref] && (
         !nnfCache.contains(cnf.hashCode) || !nnfCache(cnf.hashCode).exists {
           case (_, node) => node == nnf
         }
-      )) {
+      )
+    ) {
       nnfCache(cnf.hashCode) = (cnf, nnf) ::
         nnfCache.getOrElse(cnf.hashCode, List[(CNF, NNFNode)]())
     }
@@ -203,70 +184,40 @@ abstract class AbstractCompiler(
     * even moderate size formulas.
     */
   def tryCache(cnf: CNF): InferenceResult = {
-    // println("tryCache started for formula:")
-    // println(cnf)
     if (!nnfCache.contains(cnf.hashCode)) {
-      // println("tryCache: not found")
       List[Result]()
     } else {
-      // println("tryCache: found. The bucket has " + nnfCache(cnf.hashCode).size +
-      //           " elements.")
-      nnfCache(cnf.hashCode).toStream.map {
-        case (formula, circuit) => {
-          // println("tryCache: formula:")
-          // println(formula)
-          // println("tryCache: the other formula:")
-          // println(circuit.cnf)
-
-          CNF.identifyRecursion(cnf, formula) match {
-            case Some(recursion) => Some((circuit, recursion))
-            case None            => None
+      nnfCache(cnf.hashCode).toStream
+        .map {
+          case (formula, circuit) => {
+            CNF.identifyRecursion(cnf, formula) match {
+              case Some(recursion) => Some((circuit, recursion))
+              case None            => None
+            }
           }
         }
-      }.collectFirst { case Some(x) => x } match {
+        .collectFirst { case Some(x) => x } match {
         case Some(results) => {
-          log("\nCache hit.")
-          log("Before:")
-          log(cnf)
-          log("After:")
-          log(results._1.cnf)
-          log("Domain map:")
-          log(results._2 + "\n")
+          logger.trace("\nCache hit.")
+          logger.trace("Before:")
+          logger.trace(cnf.toString)
+          logger.trace("After:")
+          logger.trace(results._1.cnf.toString)
+          logger.trace("Domain map:")
+          logger.trace(results._2 + "\n")
 
           val node = new Ref(cnf, Some(results._1), results._2, "Cache hit.")
-          // don't cache the Ref node because the node targeted by this Ref
-          // will do
-          // updateCache(cnf, node)
-          // println("tryCache finished")
+          /* don't cache the Ref node because the node targeted by this Ref
+           * will do
+           */
           List((Some(node), List[CNF]()))
         }
         case None => {
-          // println("tryCache finished")
           List[Result]()
         }
       }
     }
   }
-
-  /* A wrapper for tryCache that adds a timeout feature.
-   *
-   * To use it, uncomment the code below, set the desired timeout value, and
-   * replace tryCache with tryCache2 in the relevant list of inference rules
-   * (e.g., in MyCompiler).
-   */
-  // val Timeout = 1 // s, for tryCache
-  // def tryCache2(cnf: CNF): InferenceResult = {
-  //   val task = new FutureTask(new Callable[InferenceResult]() {
-  //     def call() = tryCache(cnf)
-  //   })
-
-  //   try {
-  //     new Thread(task).start()
-  //     task.get(Timeout, TimeUnit.SECONDS)
-  //   } catch {
-  //     case _: TimeoutException => None
-  //   }
-  // }
 
   // ============================== INFERENCE RULES ===========================
 
@@ -283,7 +234,7 @@ abstract class AbstractCompiler(
     nonGreedyRules(i)(cnf)
   } catch {
     // This works around some bugs related to shattering
-    case _: IllegalStateException => List[Result]()
+    case _: IllegalStateException         => List[Result]()
     case _: UnsupportedOperationException => List[Result]()
   }
 
@@ -298,22 +249,18 @@ abstract class AbstractCompiler(
           case Nil => {
             rules = rules.tail
           }
-          case (node, successors)::tail => {
+          case (node, successors) :: tail => {
             // We assume that all greedy rules produce at most one solution
             require(tail.isEmpty)
             node match {
               case None => {
                 require(successors.size == 1)
                 return applyGreedyRules(successors.head)
-                }
+              }
               case Some(nnf) => {
-                // println("applyGreedyRules: adding")
-                // println(cnf)
-                // println("AND")
-                // println(nnf.cnf)
                 updateCache(cnf, nnf)
-                val newSuccessors = applyGreedyRulesToAllFormulas(nnf,
-                                                                  successors)
+                val newSuccessors =
+                  applyGreedyRulesToAllFormulas(nnf, successors)
                 return new PartialCircuit(this, Some(nnf), newSuccessors)
               }
             }
@@ -321,7 +268,7 @@ abstract class AbstractCompiler(
         }
       } catch {
         // This works around a bug in the implementation of shattering
-        case _: IllegalStateException => rules = rules.tail
+        case _: IllegalStateException         => rules = rules.tail
         case _: UnsupportedOperationException => rules = rules.tail
       }
     }

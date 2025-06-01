@@ -1,4 +1,5 @@
 /*
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +22,8 @@ import java.io.FileWriter
 import java.io.FileNotFoundException
 
 import scala.collection.mutable
+import scala.concurrent._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.BufferedSource
 import scala.language.implicitConversions
 
@@ -58,23 +61,38 @@ object XNameSpace extends NameSpace[Any, String] {
 
 }
 
-object Timer{
+object Timer {
 
   def apply[A](f: => A)(output: Long => String): A = {
     val start = System.currentTimeMillis()
     val ret = f
-    println(output(System.currentTimeMillis()-start))
+    println(output(System.currentTimeMillis() - start))
     ret
   }
 
 }
 
-object Output{
+object RunWithTimeout {
 
-  def writeToFile(file: File, content:String, report: String = ""){
+  def apply[A](timeout: Long)(block: => A): Option[A] =
+    if (timeout < 0) Some(block)
+    else {
+      val f = Future(blocking(block))
+      try {
+        Some(Await.result(f, duration.Duration(timeout, "sec")))
+      } catch {
+        case _: TimeoutException => None
+      }
+    }
+
+}
+
+object Output {
+
+  def writeToFile(file: File, content: String, report: String = "") {
     val out = new FileWriter(file)
     out.write(content)
-    if(report.nonEmpty) println(report);
+    if (report.nonEmpty) println(report);
     out.close
   }
 
@@ -103,10 +121,11 @@ object CacheStats {
   }
 }
 
-object Resource{
+object Resource {
 
   def fromFile(p: String): BufferedSource =
-    Option(getClass.getResourceAsStream(p)).map(scala.io.Source.fromInputStream)
+    Option(getClass.getResourceAsStream(p))
+      .map(scala.io.Source.fromInputStream)
       .getOrElse(throw new FileNotFoundException("Resource " + p))
 
 }

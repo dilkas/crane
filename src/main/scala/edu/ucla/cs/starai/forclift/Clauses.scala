@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,13 +39,12 @@ object Clause {
 
 }
 
-/**
-  * A clause is a set of positive and negative literals constituting a
+/** A clause is a set of positive and negative literals constituting a
   * disjunction of literals as used in a CNF.
   *
- * @note Invariant:
-  *       Inequality constraints are not between logical variables with disjoint
-  *       domains
+  * @note
+  *   Invariant: Inequality constraints are not between logical variables with
+  *   disjoint domains
   */
 class Clause(
     val posLits: List[Atom],
@@ -57,8 +56,9 @@ class Clause(
 
   val atoms: List[Atom] = posLits ::: negLits
 
-  lazy val constants: Set[Constant] = atoms.flatMap { _.constants }.toSet ++
-    constrs.constants
+  lazy val constants: Set[Constant] = literalConstants ++ constrs.constants
+
+  lazy val literalConstants: Set[Constant] = atoms.flatMap { _.constants }.toSet
 
   val literalVariables: Set[Var] = atoms.flatMap { _.variables }.toSet
 
@@ -67,15 +67,21 @@ class Clause(
 
   lazy val predicates = atoms.map { _.predicate }.toSet
 
-  lazy val rootVars = atoms.foldLeft(literalVariables) {
-    _ intersect _.variables
-  }
+  def rootVars(excludedDomains: Set[Domain]) =
+    atoms.foldLeft(literalVariables) {
+      _ intersect _.variables.filterNot {
+        excludedDomains contains constrs.domainFor(_)
+      }
+    }
 
   // ========================= VARIABLES ======================================
 
   def allVariables = constrVariables union literalVariables
 
   def constrVariables: Set[Var] = constrs.variables
+
+  def variablesNotEqualTo(constant: Constant): Set[Var] =
+    constrs.variablesNotEqualTo(constant)
 
   def variablesWithDomain(domain: Domain): List[Var] =
     constrs.variablesWithDomain(domain)
@@ -94,8 +100,8 @@ class Clause(
 
   def groundLiterals = atoms.filter { _.isGround }
 
-  /** Check whether there are constraints not pertaining to the variables in
-    * the literals
+  /** Check whether there are constraints not pertaining to the variables in the
+    * literals
     */
   def isConditional = (constrVariables -- literalVariables).nonEmpty
 
@@ -124,7 +130,8 @@ class Clause(
     Clause(posLits, negLits, constrs.setDomain(variable, domain))
   }
 
-  def singletonLiterals = atoms.filter { _.isSingleton }
+  def singletonLiterals(excludedDomains: Set[Domain] = Set[Domain]()) =
+    atoms.filter { _.isSingleton(excludedDomains) }
 
   def stripConstraints = new Clause(posLits, negLits, Constraints.empty)
 
@@ -138,19 +145,12 @@ class Clause(
     * We treat ElemConstrs separately by filtering out bijections that pair up
     * variables from different domains. Note that the number of variables in a
     * clause is usually only 2-3.
-    *
     */
   def myEquivalent(that: Any): Boolean =
     that match {
       case that: Clause => {
-        if (hashCode != that.hashCode) {
-          // println("equals: comparing " + this + " and " + that +
-          //           " with different hash codes. Inequality constraints: " +
-          //           constrs.ineqConstrs.size + " and " +
-          //           that.constrs.ineqConstrs.size)
-          false
-        } else {
-
+        if (hashCode != that.hashCode) false
+        else {
           def sameDomains(bijection: Map[Var, Var]): Boolean =
             bijection.forall {
               case (v1, v2) => {
@@ -160,22 +160,16 @@ class Clause(
               }
             }
 
-          // println("equals: comparing " + this + " and " + that)
           val bijections = variableBijections(that, sameDomains)
-          // println("equals: identified " + bijections.size +
-          //           " bijections: " + bijections)
           val answer = bijections.exists { bijection =>
             {
-              // println("equals: checking a bijection")
               substitute(bijection).exactlyEquals(that)
             }
           }
-          // println("equals: " + answer)
           answer
         }
       }
       case _ => {
-        // println("equals: different types")
         false
       }
     }
@@ -185,15 +179,8 @@ class Clause(
   def exactlyEquals(that: Any): Boolean =
     that match {
       case that: Clause => {
-        // println("Clause::exactlyEquals: comparing " + this + " and " + that)
-        // println("Clause::exactlyEquals: posLits: " +
-        //           (posLits.toSet == that.posLits.toSet))
-        // println("Clause::exactlyEquals: negLits: " +
-        //           (negLits.toSet == that.negLits.toSet))
-        // println("Clause::exactlyEquals: constrs: " + (constrs == that.constrs))
-
         posLits.toSet == that.posLits.toSet &&
-          negLits.toSet == that.negLits.toSet && constrs == that.constrs
+        negLits.toSet == that.negLits.toSet && constrs == that.constrs
       }
       case _ => false
     }
@@ -203,16 +190,6 @@ class Clause(
     */
   override def hashCode: Int =
     (constants, predicates, posLits.size, negLits.size, constrs).hashCode
-  // {
-  //   val prime = 31
-  //   var result = 1
-  //   result = prime * result + posLits.size
-  //   result = prime * result + negLits.size
-  //   result = prime * result + constrs.hashCode
-  //   // println("Clause::hashCode: clause " + this +
-  //   //           " has the following variables: " + constrs.elemConstrs.variables)
-  //   result
-  // }
 
   /** Returns all possible bijections from the variables of this clause to the
     * variables of that clause that satisfy the given condition.
@@ -233,9 +210,9 @@ class Clause(
     }.toList
 
   private[this] def constructDomainMap(
-    domains1: List[Domain],
-    domains2: List[Domain],
-    partialMap: Map[Domain, Domain]
+      domains1: List[Domain],
+      domains2: List[Domain],
+      partialMap: Map[Domain, Domain]
   ): Option[Map[Domain, Domain]] = {
     var domainBijection = Map[Domain, Domain]()
     for ((d1, d2) <- (domains1 zip domains2)) {
@@ -253,8 +230,8 @@ class Clause(
 
   // TODO: could be made into a lazy stream
   def variableAndDomainBijections(
-    that: Clause,
-    partialMap: Map[Domain, Domain]
+      that: Clause,
+      partialMap: Map[Domain, Domain]
   ): List[(Map[Var, Var], Map[Domain, Domain])] =
     that.allVariables.toList.permutations.flatMap { permutation =>
       {
@@ -275,23 +252,22 @@ class Clause(
   /** Get a most general unifier of the given atom with a literal that is not
     * yet shattered w.r.t. the given constraints. A set of equivalence classes
     * needs shattering when either
-    * - there is a class that contains a variable from the literal and a
-    *   constant
-    * - there is a class that contains 2 variables from the literal
-    * - there is a constraint between a classes in the atom and a constant that
-    *   is not present in the literal constraints.
-    * - there is a constraint between two classes in the atom that is not
-    *   present in the literal constraints.
-    * and
-    * - there is not inequality constraint between elements of the same class.
+    *   - there is a class that contains a variable from the literal and a
+    *     constant
+    *   - there is a class that contains 2 variables from the literal
+    *   - there is a constraint between a classes in the atom and a constant
+    *     that is not present in the literal constraints.
+    *   - there is a constraint between two classes in the atom that is not
+    *     present in the literal constraints. and
+    *   - there is not inequality constraint between elements of the same class.
     */
   def getShatteringMgu(atom: Atom, atomConstrs: Constraints) = {
     atoms.view
       .map { literal =>
         literal.getShatteringMgu(atom, atomConstrs, constrs)
       }
-      .collect {
-        case Some(eqClasses) => eqClasses
+      .collect { case Some(eqClasses) =>
+        eqClasses
       }
       .headOption
   }
@@ -399,8 +375,8 @@ class Clause(
       .map { literal =>
         literal.getDomainShatteringMgu(atom, atomConstrs, constrs)
       }
-      .collect {
-        case Some(eqClasses) => eqClasses
+      .collect { case Some(eqClasses) =>
+        eqClasses
       }
       .headOption
   }
@@ -418,7 +394,7 @@ class Clause(
     */
   def needsIneqDomainShattering: Boolean = constrs.needsIneqDomainShattering
 
-  //TODO move to Constraints
+  // TODO move to Constraints
   def shatterIneqDomains: List[Clause] = {
     constrs.ineqDomainShatteringVarVarPair match {
       case Some((v1, v2)) => {
@@ -618,11 +594,10 @@ class Clause(
     )).substitute(eqSubs).standardizeApart
   }
 
-  /**
-    * Return a list of all ground clauses based on this clause.
-    * Takes into account the constraints on the clauses.
+  /** Return a list of all ground clauses based on this clause. Takes into
+    * account the constraints on the clauses.
     *
-   * @param  domainSizes
+    * @param domainSizes
     */
   def ground(domainSizes: DomainSizes): List[Clause] = {
     if (literalVariables.isEmpty) {
@@ -781,21 +756,7 @@ class Clause(
 
   /** Removes all inequality constraints with the given constant. */
   def removeConstraints(constant: Constant): Clause =
-    Clause(
-      posLits,
-      negLits,
-      Constraints(
-        IneqConstr(constrs.ineqConstrs.flatMap {
-          case (variable, terms) =>
-            terms.flatMap { term: Term =>
-              if (term != constant)
-                List((variable, term))
-              else List()
-            }
-        }.toList: _*),
-        constrs.elemConstrs
-      )
-    )
+    Clause(posLits, negLits, constrs.removeConstraints(constant))
 
   /** Replaces domain1 with domain2 in all ElemConstrs. */
   def replaceDomains(domain1: Domain, domain2: Domain): Clause =
@@ -804,13 +765,12 @@ class Clause(
       negLits,
       Constraints(
         constrs.ineqConstrs,
-        constrs.elemConstrs.map {
-          case (variable, domain) =>
-            (
-              variable,
-              if (domain == domain1) domain2
-              else domain
-            )
+        constrs.elemConstrs.map { case (variable, domain) =>
+          (
+            variable,
+            if (domain == domain1) domain2
+            else domain
+          )
         }
       )
     )
@@ -883,6 +843,20 @@ class Clause(
 
   // ========================= OUTPUT =========================================
 
+  lazy val toFastWfomc: String = {
+    val nameSpace = new VarNameSpace
+    val literalStr =
+      if (posLits.isEmpty && negLits.isEmpty) "False"
+      else
+        (posLits.map { _.toFastWfomc(nameSpace) } union negLits.map {
+          "~" + _.toFastWfomc(nameSpace)
+        }).mkString(" | ")
+    List(constrs.toFastWfomc(nameSpace), literalStr)
+      .filter { _.nonEmpty }
+      .map { "(" + _ + ")" }
+      .mkString("(", " ==> ", ")")
+  }
+
   def toLatex(showRootDomains: Boolean = false) = {
     val nameSpace = new VarNameSpace
     val literalStr =
@@ -930,6 +904,14 @@ sealed trait UnitClause extends Clause {
     }
   }
 
+  def nbGroundings(variableNames: Map[Domain, String]): String = {
+    if (nbConstraintGroundings(variableNames) == "0") {
+      "0"
+    } else {
+      projectConstraints.nbConstraintGroundings(variableNames)
+    }
+  }
+
   @inline def hasConstraintSolution(domainSizes: DomainSizes): Boolean = {
     // optimized for performance
     val iter = shatterIneqDomains.iterator
@@ -938,6 +920,20 @@ sealed trait UnitClause extends Clause {
         return true
     }
     return false
+  }
+
+  @inline def hasConstraintSolution(
+      variableNames: Map[Domain, String]
+  ): String = {
+    // optimized for performance
+    var conditions = "";
+    val iter = shatterIneqDomains.iterator
+    while (iter.hasNext) {
+      val condition =
+        iter.next.hasConstraintSolutionAssumingShatteredDomains(variableNames)
+      conditions = conditions + condition + ","
+    }
+    return conditions.dropRight(1)
   }
 
   @inline def nbConstraintGroundings(domainSizes: DomainSizes): GInt = {
@@ -950,16 +946,45 @@ sealed trait UnitClause extends Clause {
     count
   }
 
+  @inline def nbConstraintGroundings(
+      variableNames: Map[Domain, String]
+  ): String = {
+    // optimized for performance
+    var count = "";
+    val iter = shatterIneqDomains.iterator
+    while (iter.hasNext)
+      count = count + iter.next.nbGroundingsAssumingShatteredDomains(
+        variableNames
+      ) + "+"
+    if (count == "") {
+      "0"
+    } else {
+      count.dropRight(1)
+    }
+  }
+
   @inline private def hasConstraintSolutionAssumingShatteredDomains(
       domainSizes: DomainSizes
   ): Boolean = {
     constrs.hasSolutionAssumingShatteredDomains(domainSizes)
   }
 
+  @inline private def hasConstraintSolutionAssumingShatteredDomains(
+      variableNames: Map[Domain, String]
+  ): String = {
+    constrs.hasSolutionAssumingShatteredDomains(variableNames)
+  }
+
   @inline private def nbGroundingsAssumingShatteredDomains(
       domainSizes: DomainSizes
   ): GInt = {
     constrs.nbGroundingsAssumingShatteredDomains(domainSizes)
+  }
+
+  @inline private def nbGroundingsAssumingShatteredDomains(
+      variableNames: Map[Domain, String]
+  ): String = {
+    constrs.nbGroundingsAssumingShatteredDomains(variableNames)
   }
 
 }
@@ -983,6 +1008,77 @@ class PositiveUnitClause(
 
   // ========================= EVERYTHING ELSE ================================
 
+  override def addInequality(v: Var, a: Term) =
+    new PositiveUnitClause(atom, constrs.addInequality(v, a))
+
+  private def canMergeWith(
+      other: PositiveUnitClause,
+      constant: Constant
+  ): Boolean =
+    variablesNotEqualTo(constant).foldLeft(removeConstraints(constant)) {
+      (clause, variable) =>
+        clause.substitute(variable, constant)
+    } == other
+
+  private def orientedMerge(
+      other: PositiveUnitClause
+  ): Option[PositiveUnitClause] = {
+    val mergeWithConstant: PartialFunction[Constant, PositiveUnitClause] = {
+      case constant if (canMergeWith(other, constant)) =>
+        removeConstraints(constant).asInstanceOf[PositiveUnitClause]
+    }
+    constrs.constants
+      .diff(literalConstants)
+      .intersect(
+        other.literalConstants.diff(other.constrs.constants)
+      )
+      .collectFirst(mergeWithConstant)
+  }
+
+  def mergeWith(other: PositiveUnitClause): Option[PositiveUnitClause] =
+    (orientedMerge(other), other.orientedMerge(this)) match {
+      case (Some(merged), _) => Some(merged)
+      case (_, Some(merged)) => Some(merged)
+      case _                 => None
+    }
+
+  /** Generalises the clause to the state it was in before domain recursion.
+    *
+    * More specifically: 1) we remove all inequality constraints with the
+    * constant, and 2) each occurrence of the constant in the atom is replaced
+    * with a FRESH variable associated with the same domain as the constant.
+    * Used in the atom propagation stage of smoothing on the domain recursion
+    * node.
+    */
+  def undoDomainRecursion(constant: Constant) = {
+    var newConstraints = constrs.removeConstraints(constant)
+    val newArgs = atom.args.map {
+      case c: Constant if c == constant => {
+        val newVar = new Var()
+        newConstraints = newConstraints.addDomain(newVar, constant.domain.get)
+        newVar
+      }
+      case other => other
+    }
+    val n = new PositiveUnitClause(
+      new Atom(atom.predicate, newArgs: _*),
+      newConstraints
+    )
+    n
+  }
+
+  /** Removes all inequality constraints with the given constant. */
+  override def removeConstraints(constant: Constant): PositiveUnitClause =
+    new PositiveUnitClause(atom, constrs.removeConstraints(constant))
+
+  override def substitute(from: Var, to: Term): PositiveUnitClause = {
+    def substitution(v: Var) = if (v == from) to else v
+    new PositiveUnitClause(
+      atom.substitute(substitution),
+      constrs.substitute(substitution)
+    )
+  }
+
   def equivalent(other: PositiveUnitClause) = {
     val equivalent = ((this eq other) || (!this.independent(other) &&
       !this.needsShattering(other.atom, other.constrs) &&
@@ -991,9 +1087,8 @@ class PositiveUnitClause(
     equivalent
   }
 
-  /**
-    * Get a grounding whose constants are known to the domain.
-    * When no constants are known, add them.
+  /** Get a grounding whose constants are known to the domain. When no constants
+    * are known, add them.
     */
   def getGrounding(domainSizes: DomainSizes) = {
     val queryGround = ground(domainSizes)
@@ -1080,6 +1175,11 @@ class PositiveUnitClause(
       constrs.substitute(substitution)
     )
   }
+
+  override def substituteDomains(
+      substitution: Domain => Domain
+  ): PositiveUnitClause =
+    new PositiveUnitClause(atom, constrs.substituteDomains(substitution))
 
   def subsumes(other: PositiveUnitClause): Boolean =
     (this.needsShattering(other.atom, other.constrs)

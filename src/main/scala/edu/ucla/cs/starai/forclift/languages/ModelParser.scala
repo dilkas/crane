@@ -16,14 +16,20 @@
 
 package edu.ucla.cs.starai.forclift.languages
 
-import edu.ucla.cs.starai.forclift.PositiveUnitClause
 import edu.ucla.cs.starai.forclift.Atom
+import edu.ucla.cs.starai.forclift.Domain
+import edu.ucla.cs.starai.forclift.PositiveUnitClause
 
 /**
  * A parser supporting one of the input file types.
  */
 trait ModelParser {
-  
+
+  /**
+   * The domains of the instance in the order in which they were defined
+   */
+  var domains: List[Domain] = List()
+
   /**
    * Parse a string into a supported model.
    */

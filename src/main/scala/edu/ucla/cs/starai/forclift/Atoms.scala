@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +50,8 @@ final case class Predicate(
     (new PositiveUnitClause(new Atom(this, vars: _*))).standardizeApart
   }
 
+  def toFastWfomc = name.name.toUpperCase.filterNot(Set('{', '}', '_').contains)
+
   override def toString = name.name.toString
 
   def toStringFull =
@@ -73,7 +75,8 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
 
   def isGround = variables.isEmpty
 
-  def isSingleton = (variables.size == 1)
+  def isSingleton(excludedDomains: Set[Domain] = Set[Domain]()) =
+    (variables.size == 1 && !excludedDomains.contains(domain(variables.head)))
 
   def samePredicates(that: Atom): Boolean = (predicate == that.predicate)
 
@@ -89,10 +92,6 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
   override def equals(that: Any): Boolean =
     that match {
       case that: Atom => {
-        // println("Atom::equals: comparing " + this + " and " + that)
-        // println("Atom::equals: predicates equal: " +
-        //           (predicate == that.predicate) + ", args equal: " +
-        //           (args == that.args))
         predicate == that.predicate && args == that.args
       }
       case _          => false
@@ -414,6 +413,21 @@ final case class Atom(val predicate: Predicate, val args: Term*) {
     )
 
   // ========================= OUTPUT =========================================
+
+  def toFastWfomc(nameSpace: NameSpace[Var, String]) = {
+    var lastUsedVar = -1;
+    val argStrings = for (arg <- args) yield {
+      arg match {
+        case variable: Var => nameSpace.getName(variable).toLowerCase
+        case _: Constant   => arg.toString
+      }
+    }
+    if (predicate.arity == 0) {
+      predicate.toFastWfomc
+    } else {
+      predicate.toFastWfomc + argStrings.mkString("(", ", ", ")")
+    }
+  }
 
   def toLatex(nameSpace: NameSpace[Var, String]) = {
     var lastUsedVar = -1;

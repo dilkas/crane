@@ -1,10 +1,10 @@
 *.nnf
 /target
 *~
-/bin
 *.class
 *.log
 .bloop
+.vscode/
 
 # hide external dependency directory
 external/*
@@ -33,3 +33,6 @@ project
 .classpath
 
 nnfs/
+.bsp/
+.metals/
+src/main/cpp/test.cpp

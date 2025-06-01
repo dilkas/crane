@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,6 +46,7 @@ abstract class NnfVisitor[I, O] {
         case ref: Ref                  => visitRefNode(ref, input)
         case ie: InclusionExclusion    => visitInclusionExclusionNode(ie, input)
         case cr: ConstraintRemovalNode => visitConstraintRemovalNode(cr, input)
+        case node: ShatterNode         => visitShatterNode(node, input)
 
         // First-Order Nodes
         case forall: IndependentPartialGroundingNode =>
@@ -83,5 +84,6 @@ abstract class NnfVisitor[I, O] {
   protected def visitSmoothingNode(leaf: SmoothingNode, input: I): O
   protected def visitTrue(input: I): O
   protected def visitUnitLeaf(leaf: UnitLeaf, input: I): O
+  protected def visitShatterNode(node: ShatterNode, input: I): O
 
 }
