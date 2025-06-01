@@ -1,3 +1,20 @@
+/*
+ * Copyright 2025 Paulius Dilkas (University of Toronto), Ananth K. Kidambi (IIT
+ * Bombay), Guramrit Singh (IIT Bombay)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "expression.h"
 
 #include <cmath>
@@ -9,8 +26,6 @@ Expression::Expression(Expression *other) {
     tokens_.push_back(token->Clone());
 }
 
-// TODO (Paulius): I'm guessing this won't work for a unary minus sign in
-// front of anything other than an integer.
 Expression::Expression(const std::string &exp_str) {
   tokens_.reserve(exp_str.size());
   for (unsigned i = 0; i < exp_str.size(); i++) {
@@ -108,8 +123,6 @@ Expression::MaxDecrementPerVariable(std::map<std::string, int> &max_sub,
   std::copy(max_sub.begin(), max_sub.end(), std::back_inserter(max_sub_vec));
   return max_sub_vec;
 }
-// TODO (Paulius): this translation to a vector shouldn't be here. Maybe in
-// main.cc, maybe notwhere.
 
 std::unique_ptr<Expression>
 Expression::ShuntingYard(bool recursive /*= true*/) const {

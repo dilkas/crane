@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -170,8 +170,6 @@ abstract class MyCompiler(
     }
   }
 
-  // TODO (Paulius): check if the algorithm works without some of the
-  // undocumented auxiliary rules
   override def greedyRules: List[InferenceRule] =
     List(
       tryTautology,

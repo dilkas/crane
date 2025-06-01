@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,6 @@
  */
 
 package edu.ucla.cs.starai.forclift.nnf
-
-// TODO (Paulius): do I need this many imports?
 
 import breeze.math._
 import collection._
@@ -120,7 +118,6 @@ abstract class NNFNode(
     */
   def directSuccessors: List[Option[NNFNode]] = List[Option[NNFNode]]()
 
-  // TODO (Paulius): can I make it part of the constructor?
   def domains: Set[Domain]
 
   def evalOrder: Int

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -960,7 +960,6 @@ class SafeSignLogDoubleWmc extends SignLogDoubleWmc {
     } else NaN
   }
 
-  // TODO (Paulius): remove?
   override protected def visitShatterNode(
       node: ShatterNode,
       params: (DomainSizes, PredicateWeights)

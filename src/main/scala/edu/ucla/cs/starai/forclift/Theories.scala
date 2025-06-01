@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +21,6 @@ import collection._
 import scala.collection.immutable.Stream
 import edu.ucla.cs.starai.forclift.inference._
 import edu.ucla.cs.starai.forclift.nnf._
-
-// TODO (Paulius): reorder the methods
 
 /** @param excludedDomains
   *   is used by ImprovedDomainRecursion and AtomCounting to avoid using more

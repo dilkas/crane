@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,8 +29,6 @@ import collection.mutable.ListBuffer
 import breeze.math._
 import edu.ucla.cs.starai.forclift.nnf.visitors.SafeSignLogDoubleWmc
 import edu.ucla.cs.starai.forclift.nnf.visitors.WmcVisitor
-
-// TODO (Paulius): reorder  methods within classes
 
 class And(
     val cnf: CNF,
@@ -720,7 +718,6 @@ class Ref(
 
 }
 
-// TODO (Paulius): a nice description of ShatterNode
 /** Needed so that recursive calls can reference the formula after shattering */
 class ShatterNode(
     val cnf: CNF,

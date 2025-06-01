@@ -1,3 +1,20 @@
+/*
+ * Copyright 2025 Paulius Dilkas (University of Toronto), Ananth K. Kidambi (IIT
+ * Bombay), Guramrit Singh (IIT Bombay)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package edu.ucla.cs.starai.forclift.nnf
 
 import java.io._
@@ -64,9 +81,6 @@ class NumericalEvaluator(val domains: List[Domain]) extends LazyLogging {
     execFilename
   }
 
-  // TODO (Paulius): mention that timeout is in seconds and a negative timeout
-  // means no timeout. Even better, make it an Option[Int]. Also, note that
-  // timeout is measured in two places: here and in the C++ code.
   /** Runs the compiled C++ code and extracts the numerical answer. */
   private[this] def getNumericalAnswer(
       execFilename: String,

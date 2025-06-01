@@ -1,12 +1,26 @@
+/*
+ * Copyright 2025 Paulius Dilkas (University of Toronto), Ananth K. Kidambi (IIT
+ * Bombay), Guramrit Singh (IIT Bombay)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "function_call.h"
 
 #include <cassert>
 #include <sstream>
 
 #include "expression.h"
-
-// TODO (Paulius): implement visitors instead of random methods across all the
-// classes
 
 FunctionCall::FunctionCall(const std::string &func_name,
                            const std::vector<Expression *> &func_args)
@@ -82,8 +96,6 @@ std::string FunctionCall::GetFunctionName() const {
   return name.str();
 }
 
-// TODO (Paulius): have a copy constructor that maps a function over the
-// function arguments
 void FunctionCall::HandlePower(
     std::stack<std::list<std::unique_ptr<Token>>> &exp_stack,
     bool recursive) const {
@@ -155,8 +167,6 @@ void FunctionCall::ShuntingYard(
       new_unit->func_args[i] = new_unit->func_args[i]->ShuntingYard();
   postfix_exp->AddToken(std::unique_ptr<Token>(new_unit));
 }
-
-// TODO (Paulius): remove duplicates
 
 FunctionCall *OtherFunctionCall::CloneFunctionCall() const {
   std::vector<Expression *> new_func_args;

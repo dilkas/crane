@@ -1,5 +1,6 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto), Ananth K. Kidambi (IIT
+ * Bombay), Guramrit Singh (IIT Bombay)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +30,6 @@ import edu.ucla.cs.starai.forclift.util.ExternalBinaries
 import System._
 import java.io._
 import scala.util.matching.Regex
-
-// TODO (Paulius): remove the entire class and some of the toLatex methods?
 
 /** Constructs a list of Strings, where each String is a definition of a
   * function in LaTeX syntax.
@@ -358,8 +357,6 @@ object LatexOutputVisitor {
 
 }
 
-// TODO (Paulius): some methods are quite long
-
 class MainOutputVisitor(
     val initialDomains: Set[Domain],
     val directSuccessorsOfRef: Set[NNFNode],
@@ -585,7 +582,6 @@ class MainOutputVisitor(
       params: (Map[Domain, String], PredicateWeights)
   ): (String, List[String]) = ("1", Nil)
 
-  // TODO (Paulius): There is significant overlap with visitSmoothingNode
   protected def visitUnitLeaf(
       leaf: UnitLeaf,
       params: (Map[Domain, String], PredicateWeights)

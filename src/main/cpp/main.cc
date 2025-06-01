@@ -1,13 +1,19 @@
-// clang-format off
-/* TODO:
- * (1) Add support for functions where a function appears inside another
- *     function, specifically power.
- * (2) Handle the sum function of wolfram (suggestion: define a separate
- *     function for it like power and Binomial). For (2), need to add support
- *     for the {...} list/tuple syntax of wolfram, or replace it beforehand by
- *     something else.
+/*
+ * Copyright 2025 Paulius Dilkas (University of Toronto), Ananth K. Kidambi (IIT
+ * Bombay), Guramrit Singh (IIT Bombay)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-// clang-format on
 
 #include <fstream>
 #include <iostream>
@@ -21,10 +27,6 @@
 #include "expression.h"
 #include "function_call.h"
 #include "token.h"
-
-// TODO (Paulius): fix the function name formatting
-// TODO (Paulius): fix memory leaks
-// TODO (Paulius): smaller functions
 
 /** Generates C++ definitions for the equations */
 std::string GenerateFunctionDefinition(std::string equation) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,6 @@ class GreedyCompiler(
     grounding: Boolean = false,
     skolemize: String = ""
 ) extends Compiler {
-
-  // TODO (Paulius): (here, in BreadthCompiler, CompilerWrapper, and
-  // Skolemizer): rename 'skolemize' -> 'skolemization_output_filename' (or
-  // something like that). Similarly, the environmental variable SKOLEMIZE
-  // should also be renamed.
 
   lazy val compiler = if (skolemize.nonEmpty) {
     new LiftedSkolemizer(sizeHint, skolemize)

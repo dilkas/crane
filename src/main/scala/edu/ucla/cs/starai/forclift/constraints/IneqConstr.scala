@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,6 @@ import scala.language.implicitConversions
 import edu.ucla.cs.starai.forclift._
 import util._
 import util.extracollection._
-
-// TODO (Paulius): organise the methods
 
 final class IneqConstr(final val self: MultiMap[Var, Term] = MultiMap.empty)
     extends MapProxy[Var, Set[Term]] {

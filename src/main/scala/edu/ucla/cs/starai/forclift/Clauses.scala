@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  * Copyright 2016 Guy Van den Broeck and Wannes Meert (UCLA and KU Leuven)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -989,7 +989,6 @@ sealed trait UnitClause extends Clause {
 
 }
 
-// TODO (Paulius): reorder/organize methods below
 class PositiveUnitClause(
     val atom: Atom,
     val initialConstrs: Constraints = Constraints.empty
@@ -1008,7 +1007,6 @@ class PositiveUnitClause(
   override def hashCode: Int = super.hashCode
 
   // ========================= EVERYTHING ELSE ================================
-  // TODO (Paulius): reorder methods below
 
   override def addInequality(v: Var, a: Term) =
     new PositiveUnitClause(atom, constrs.addInequality(v, a))

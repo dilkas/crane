@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Paulius Dilkas (National University of Singapore)
+ * Copyright 2025 Paulius Dilkas (University of Toronto)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,8 +46,6 @@ class DomainsVisitor(val nodes: ListBuffer[NNFNode])
   }
 
   // ========================= NON-SINK NODES =================================
-
-  // TODO (Paulius): reorder the methods (for other Visitors as well)
 
   protected def visitShatterNode(
       node: ShatterNode,
