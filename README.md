@@ -52,6 +52,7 @@ java -jar target/scala-2.11/crane-assembly-1.0.jar \
 ## 📄 Related Publications
 - **Kidambi A. K., Singh G., Dilkas P., Meel K. S.** (2025). *Towards Practical First-Order Model Counting*. In *Proceedings of SAT 2025*.
 - **Dilkas P., Belle V.** (2023). *Synthesising Recursive Functions for First-Order Model Counting: Challenges, Progress, and Conjectures*. In *Proceedings of KR 2023*.
+- **Dilkas P.** *Generalising Weighted Model Counting*. University of Edinburgh 2023.
 
 ## 👥 Contributors
 - [**Paulius Dilkas**](https://dilkas.github.io/) — University of Toronto, Canada  
